@@ -99,6 +99,7 @@ export function AgentSettings(props: {
   onSelectMailbox: (id: number) => void;
   onMailboxDeleted: (nextMailboxId: number | null) => void;
   onOpenGeneral: () => void;
+  onOpenMembers: () => void;
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -334,6 +335,7 @@ export function AgentSettings(props: {
         active="inboxes"
         onBack={props.onBack}
         onOpenGeneral={props.onOpenGeneral}
+        onOpenMembers={props.onOpenMembers}
         onOpenInboxes={() => undefined}
       />
 
