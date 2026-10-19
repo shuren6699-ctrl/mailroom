@@ -9,6 +9,7 @@
   // Preview URLs are separate hostnames, so keep them off.
   "workers_dev": true,
   "preview_urls": false,
+  "routes": [{ "pattern": "mail.ads9527.com", "custom_domain": true }],
   // Preserve per-instance WEB_ACCESS_TEAM_DOMAIN and WEB_ACCESS_AUD from
   // Worker Settings > Variables and Secrets. Missing values deny all API access.
   "keep_vars": true,
