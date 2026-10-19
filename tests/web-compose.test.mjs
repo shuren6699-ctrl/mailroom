@@ -37,6 +37,10 @@ function fixture(t, { fail = false } = {}) {
     EMAIL: { async send(message) { sent.push(message); if (fail) throw new Error("Provider unavailable"); return { messageId: `message-${sent.length}@example.com` }; } },
   };
   const app = new Hono();
+  app.use("/api/*", async (c, next) => {
+    c.set("principal", { email: "shuren6699@gmail.com", role: "admin", enabled: true, mailboxIds: [1, 2] });
+    await next();
+  });
   app.use("/api/*", requireSameOrigin);
   app.route("/api/compose", composeApi);
   const post = (form, origin = "https://mailroom.example") => app.request("https://mailroom.example/api/compose", { method: "POST", headers: { Origin: origin }, body: form }, env);
