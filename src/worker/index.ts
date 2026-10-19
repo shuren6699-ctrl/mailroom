@@ -4,8 +4,9 @@ import { api } from "./api";
 import { requireWebAccess } from "./api/access.ts";
 import { processDraftRun } from "./agent/draft";
 import { receiveEmail } from "./email/receive";
+import type { ApiVariables } from "./api/context.ts";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: ApiVariables }>();
 app.use("/api/*", requireWebAccess);
 app.route("/api", api);
 
