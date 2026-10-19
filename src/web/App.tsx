@@ -1,5 +1,5 @@
-import { useDeferredValue, useEffect, useRef } from "react";
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { keepPreviousData, QueryClientProvider, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Navigate,
   Route,
@@ -13,58 +13,141 @@ import {
   accessSetupError,
   fetchLabels,
   fetchMailboxes,
+  fetchCurrentUser,
   fetchThreads,
   searchThreads,
   THREAD_PAGE_SIZE,
   type ThreadCursor,
+  type CurrentUser,
 } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { AgentSettings } from "./components/AgentSettings";
 import { GeneralSettings } from "./components/GeneralSettings";
+import { MembersSettings } from "./components/MembersSettings";
+import { Button } from "@/components/ui/button";
 import { ComposeEmailProvider, useCompose } from "./components/ComposeEmail";
 import { InboxIcon } from "./components/Icons";
 import { Sidebar } from "./components/Sidebar";
 import { ThreadList, type ThreadFilter, type ThreadScope } from "./components/ThreadList";
 import { ThreadView } from "./components/ThreadView";
 import { useUnreadIndicator } from "./use-unread-indicator";
+import { reconcileBrowserPushIdentity } from "./push-notifications";
+import { createWorkspaceQueryClient } from "./workspace-query-client";
 
 type WorkspaceView = "inbox" | "archive" | "settings";
-type SettingsSection = "general" | "inboxes";
+type SettingsSection = "general" | "inboxes" | "members";
 
 export function App() {
+  const queryClient = useQueryClient();
+  const [activeIdentity, setActiveIdentity] = useState<string | null>(null);
+  const [identityVerified, setIdentityVerified] = useState(false);
+  const [identityTransitionError, setIdentityTransitionError] = useState(false);
+  const [identityTransitionAttempt, setIdentityTransitionAttempt] = useState(0);
+  const reconciledPushEmail = useRef<string | null>(null);
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: fetchCurrentUser,
+    retry: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchIntervalInBackground: true,
+  });
+  useEffect(() => {
+    if (me.isSuccess && !me.isFetching) setIdentityVerified(true);
+  }, [me.isFetching, me.isSuccess]);
+  const identity = identityVerified && me.data && !me.isError
+    ? JSON.stringify([me.data.email, me.data.role, me.data.enabled, [...me.data.mailbox_ids].sort((a, b) => a - b)])
+    : null;
+  const identityEmail = identity === null ? null : me.data!.email.trim().toLowerCase();
+
+  useEffect(() => {
+    if (identity === activeIdentity) {
+      setIdentityTransitionError(false);
+      return;
+    }
+    let cancelled = false;
+    setActiveIdentity(null);
+    setIdentityTransitionError(false);
+    // Never reuse mailbox, message, settings or mutation data across identities
+    // or permission changes. Unmount the workspace before clearing its queries.
+    void (async () => {
+      try {
+        await queryClient.cancelQueries({ predicate: (query) => query.queryKey[0] !== "me" });
+        if (cancelled) return;
+        queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== "me" });
+        queryClient.getMutationCache().clear();
+        // Missing persistent ownership also triggers cleanup inside the helper,
+        // covering subscriptions created before per-member notifications existed.
+        if (identityEmail !== null && reconciledPushEmail.current !== identityEmail) {
+          reconciledPushEmail.current = null;
+          await reconcileBrowserPushIdentity(identityEmail);
+          if (cancelled) return;
+          reconciledPushEmail.current = identityEmail;
+        }
+        if (!cancelled) setActiveIdentity(identity);
+      } catch {
+        if (!cancelled) setIdentityTransitionError(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeIdentity, identity, identityEmail, identityTransitionAttempt, queryClient]);
+
+  const setupError = accessSetupError(me.error);
+  if (setupError) return <AccessSetup error={setupError} onRetry={() => { void me.refetch(); }} retrying={me.isFetching} />;
+  if (me.isError) return <IdentityState title="无法确认当前账号权限" detail="请重试；若账号已停用，请联系管理员。" onRetry={() => { void me.refetch(); }} retrying={me.isFetching} />;
+  if (identityTransitionError) return <IdentityState title="无法完成此浏览器的账号切换" detail="旧账号的浏览器通知尚未清理，请重试。" onRetry={() => { setIdentityTransitionError(false); setIdentityTransitionAttempt((attempt) => attempt + 1); }} />;
+  if (!identityVerified || !me.data || identity !== activeIdentity) return <IdentityState title="正在确认账号权限…" />;
+  if (!me.data.enabled) return <IdentityState title="当前账号尚未启用" detail="尚未添加为成员或已被停用，请联系管理员。" />;
+
+  return <AuthenticatedApp key={activeIdentity} user={me.data} />;
+}
+
+function AuthenticatedApp({ user }: { user: CurrentUser }) {
+  const isAdmin = user.role === "admin";
+  // A late mutation callback may still run after unmounting. Keeping its client
+  // separate prevents it from writing private data into the next user's cache.
+  const [workspaceQueryClient] = useState(createWorkspaceQueryClient);
+  useEffect(() => () => {
+    void workspaceQueryClient.cancelQueries();
+    workspaceQueryClient.clear();
+  }, [workspaceQueryClient]);
   return (
-    <ComposeEmailProvider>
+    <QueryClientProvider client={workspaceQueryClient}>
+    <ComposeEmailProvider isAdmin={isAdmin}>
     <Routes>
       <Route path="/" element={<Navigate to="/inbox" replace />} />
-      <Route path="/inbox" element={<Workspace view="inbox" />} />
-      <Route path="/inbox/:threadId" element={<Workspace view="inbox" />} />
-      <Route path="/archive" element={<Workspace view="archive" />} />
-      <Route path="/archive/:threadId" element={<Workspace view="archive" />} />
-      <Route path="/mailboxes/:mailboxId" element={<Workspace view="inbox" mailboxScoped />} />
+      <Route path="/inbox" element={<Workspace view="inbox" user={user} />} />
+      <Route path="/inbox/:threadId" element={<Workspace view="inbox" user={user} />} />
+      <Route path="/archive" element={<Workspace view="archive" user={user} />} />
+      <Route path="/archive/:threadId" element={<Workspace view="archive" user={user} />} />
+      <Route path="/mailboxes/:mailboxId" element={<Workspace view="inbox" mailboxScoped user={user} />} />
       <Route
         path="/mailboxes/:mailboxId/threads/:threadId"
-        element={<Workspace view="inbox" mailboxScoped />}
+        element={<Workspace view="inbox" mailboxScoped user={user} />}
       />
       <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
       <Route
         path="/settings/general"
-        element={<Workspace view="settings" settingsSection="general" />}
+        element={<Workspace view="settings" settingsSection="general" user={user} />}
       />
       <Route
         path="/settings/inboxes"
-        element={<Workspace view="settings" settingsSection="inboxes" />}
+        element={isAdmin ? <Workspace view="settings" settingsSection="inboxes" user={user} /> : <Navigate to="/settings/general" replace />}
       />
       <Route
         path="/settings/inboxes/:mailboxId"
-        element={<Workspace view="settings" settingsSection="inboxes" />}
+        element={isAdmin ? <Workspace view="settings" settingsSection="inboxes" user={user} /> : <Navigate to="/settings/general" replace />}
       />
+      <Route path="/settings/members" element={isAdmin ? <Workspace view="settings" settingsSection="members" user={user} /> : <Navigate to="/settings/general" replace />} />
       <Route path="*" element={<Navigate to="/inbox" replace />} />
     </Routes>
     </ComposeEmailProvider>
+    </QueryClientProvider>
   );
 }
 
 function Workspace(props: {
+  user: CurrentUser;
   view: WorkspaceView;
   mailboxScoped?: boolean;
   settingsSection?: SettingsSection;
@@ -75,6 +158,7 @@ function Workspace(props: {
   const params = useParams<{ mailboxId?: string; threadId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const autoSelectedScope = useRef<string | null>(null);
+  const isAdmin = props.user.role === "admin";
 
   const routeMailboxId = parseId(params.mailboxId);
   const selectedMailbox =
@@ -122,7 +206,7 @@ function Workspace(props: {
         : { at: last.last_message_at, id: last.id };
     },
     placeholderData: keepPreviousData,
-    enabled: isMailView,
+    enabled: isMailView && Boolean(mailboxes.data?.length),
     refetchInterval: (query) =>
       query.state.data?.pages.some((page) =>
         page.some(
@@ -134,6 +218,7 @@ function Workspace(props: {
         : 30_000,
   });
   const threadRows = threads.data?.pages.flat() ?? [];
+  const noMailboxAccess = !isAdmin && props.user.mailbox_ids.length === 0;
 
   const listPath = isArchive
     ? "/archive"
@@ -144,6 +229,12 @@ function Workspace(props: {
   useEffect(() => {
     if (selectedThread !== null) autoSelectedScope.current = listPath;
   }, [listPath, selectedThread]);
+
+  useEffect(() => {
+    if (!isAdmin && routeMailboxId !== null && !props.user.mailbox_ids.includes(routeMailboxId)) {
+      navigate("/inbox", { replace: true });
+    }
+  }, [isAdmin, navigate, props.user.mailbox_ids, routeMailboxId]);
 
   useEffect(() => {
     if (
@@ -255,16 +346,21 @@ function Workspace(props: {
         onSelect={selectMailbox}
         onOpenArchive={() => navigate("/archive")}
         onOpenSettings={openSettings}
-        onCompose={() => openCompose(selectedMailbox)}
+        onCompose={() => { if (mailboxes.data?.length) openCompose(selectedMailbox); }}
+        composeDisabled={!mailboxes.data?.length}
       />
 
       {props.view === "settings" ? (
         <main className="min-w-0 flex-1 overflow-hidden">
           {props.settingsSection === "general" ? (
             <GeneralSettings
+              isAdmin={isAdmin}
               onBack={() => navigate("/inbox")}
-              onOpenInboxes={openInboxSettings}
+              onOpenInboxes={isAdmin ? openInboxSettings : undefined}
+              onOpenMembers={isAdmin ? () => navigate("/settings/members") : undefined}
             />
+          ) : props.settingsSection === "members" ? (
+            <MembersSettings onBack={() => navigate("/inbox")} onOpenGeneral={() => navigate("/settings/general")} onOpenInboxes={openInboxSettings} />
           ) : (
             <AgentSettings
               mailboxes={mailboxes.data ?? []}
@@ -279,6 +375,7 @@ function Workspace(props: {
                 )
               }
               onOpenGeneral={() => navigate("/settings/general")}
+              onOpenMembers={() => navigate("/settings/members")}
               onBack={() => navigate("/inbox")}
             />
           )}
@@ -307,13 +404,15 @@ function Workspace(props: {
             error={threads.isError}
             detailsOpen={selectedThread !== null}
             emptyInbox={inboxIsEmpty}
+            noMailboxAccess={noMailboxAccess}
+            composeDisabled={!mailboxes.data?.length}
             onSearch={(query) => updateQuery("q", query)}
             onFilter={(nextFilter) => updateQuery("filter", nextFilter, "all")}
             onSelectLabel={(id) => updateQuery("label", id === null ? "" : String(id))}
             onSelectScope={selectScope}
             onOpenSettings={openSettings}
-            onCompose={() => openCompose(selectedMailbox)}
-            onOpenMailboxSettings={(id) => navigate(`/settings/inboxes/${id}`)}
+            onCompose={() => { if (mailboxes.data?.length) openCompose(selectedMailbox); }}
+            onOpenMailboxSettings={isAdmin ? (id) => navigate(`/settings/inboxes/${id}`) : undefined}
             onSelect={(id) =>
               navigate({ pathname: `${threadListBase(listPath)}/${id}`, search: location.search })
             }
@@ -326,7 +425,7 @@ function Workspace(props: {
           <main
             className={`min-w-0 flex-1 overflow-hidden ${selectedThread === null ? "hidden md:block" : "block"}`}
           >
-            {selectedThread !== null ? (
+            {selectedThread !== null && !noMailboxAccess ? (
               <ThreadView
                 key={selectedThread}
                 threadId={selectedThread}
@@ -335,7 +434,7 @@ function Workspace(props: {
                 onMoved={() => navigate({ pathname: listPath, search: location.search })}
               />
             ) : (
-              <EmptyReadingPane empty={inboxIsEmpty} />
+              <EmptyReadingPane empty={inboxIsEmpty} noMailboxAccess={noMailboxAccess} />
             )}
           </main>
         </>
@@ -344,17 +443,17 @@ function Workspace(props: {
   );
 }
 
-function EmptyReadingPane(props: { empty: boolean }) {
+function EmptyReadingPane(props: { empty: boolean; noMailboxAccess?: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center bg-canvas px-6 pb-16 text-center">
       <span className="flex h-11 w-11 items-center justify-center rounded-full border bg-background text-muted-foreground">
         <InboxIcon className="h-5 w-5" />
       </span>
       <p className="mt-3 text-[13px] font-medium text-foreground">
-        {props.empty ? "这里还没有邮件" : "尚未选择会话"}
+        {props.noMailboxAccess ? "尚未分配收件箱" : props.empty ? "这里还没有邮件" : "尚未选择会话"}
       </p>
       <p className="mt-1 max-w-64 text-[12.5px] leading-5 text-muted-foreground">
-        {props.empty ? (
+        {props.noMailboxAccess ? "请联系管理员为你分配收件箱权限。" : props.empty ? (
           "收到的新邮件会显示在左侧列表中。"
         ) : (
           <>
@@ -368,6 +467,15 @@ function EmptyReadingPane(props: { empty: boolean }) {
       </p>
     </div>
   );
+}
+
+function IdentityState(props: { title: string; detail?: string; onRetry?: () => void; retrying?: boolean }) {
+  return <main className="flex h-dvh flex-col items-center justify-center gap-3 bg-canvas px-6 text-center text-foreground">
+    <InboxIcon className="h-7 w-7 text-muted-foreground" />
+    <h1 className="text-sm font-medium" role="status">{props.title}</h1>
+    {props.detail && <p className="max-w-sm text-[13px] leading-6 text-muted-foreground">{props.detail}</p>}
+    {props.onRetry && <Button variant="outline" size="sm" onClick={props.onRetry} disabled={props.retrying}>{props.retrying ? "正在重试…" : "重试"}</Button>}
+  </main>;
 }
 
 function parseId(value: string | undefined): number | null {
