@@ -25,14 +25,14 @@ export interface NewEmailNotificationPayload {
 export function buildNewEmailNotification(
   input: NewEmailNotificationInput,
 ): NewEmailNotificationPayload {
-  const sender = (input.senderName?.trim() || input.senderAddress.trim() || "Unknown sender")
+  const sender = (input.senderName?.trim() || input.senderAddress.trim() || "未知发件人")
     .replace(/\s+/g, " ")
     .slice(0, 80);
   const subject = input.subject.trim().replace(/\s+/g, " ").slice(0, 160);
 
   return {
-    title: `New email from ${sender}`,
-    body: subject || "(no subject)",
+    title: `来自 ${sender} 的新邮件`,
+    body: subject || "（无主题）",
     tag: `conversation-${input.threadId}`,
     data: { url: `/inbox/${input.threadId}` },
   };
