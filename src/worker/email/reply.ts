@@ -76,7 +76,8 @@ export async function sendReplyAttempt(
   if (!thread) throw new ReplyIntentError("Conversation not found", 404);
 
   const lastInbound = await env.DB.prepare(
-    `SELECT id, message_id, from_address, reply_to_addresses, references_ids
+    `SELECT id, COALESCE(rfc_message_id, message_id) AS message_id,
+            from_address, reply_to_addresses, references_ids
      FROM messages
      WHERE thread_id = ? AND direction = 'inbound'
        AND (? = 0 OR id = ?)
