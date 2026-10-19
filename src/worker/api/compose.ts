@@ -4,6 +4,8 @@ import { z } from "zod";
 import { MAX_ATTACHMENTS_PER_MESSAGE, MAX_ATTACHMENT_TOTAL_BYTES, MAX_MESSAGE_CHARS, MAX_SUBJECT_CHARS } from "../../shared/email-limits.ts";
 import { AttachmentInputError } from "../email/attachments.ts";
 import { ComposeIntentError, sendNewEmailAttempt, type ComposeEnv } from "../email/compose.ts";
+import type { ApiVariables } from "./context.ts";
+import { canUseMailbox } from "../inbox/permissions.ts";
 
 const input = z.object({
   mailbox_id: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
@@ -13,7 +15,7 @@ const input = z.object({
   attempt_id: z.uuid(),
 });
 
-export const composeApi = new Hono<{ Bindings: ComposeEnv }>();
+export const composeApi = new Hono<{ Bindings: ComposeEnv; Variables: ApiVariables }>();
 
 composeApi.post("/", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
   if (!(c.req.header("Content-Type") ?? "").toLowerCase().startsWith("multipart/form-data;")) {
@@ -40,6 +42,10 @@ composeApi.post("/", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
       : field === "mailbox_id" ? "Choose a sending inbox"
       : "Invalid send request; close this message and try again";
     return c.json({ error: message }, 400);
+  }
+  const principal = c.get("principal");
+  if (!principal || !canUseMailbox(principal, parsed.data.mailbox_id)) {
+    return c.json({ error: "你没有此收件箱的发信权限" }, 403);
   }
   const files = form.getAll("attachments");
   if (files.some((file) => !(file instanceof File) || file.size === 0)) {
