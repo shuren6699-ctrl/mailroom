@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ArrowLeftIcon } from "./Icons";
 
-export type SettingsSection = "general" | "inboxes";
+export type SettingsSection = "general" | "inboxes" | "members";
 
 export function SettingsHeader(props: {
   active: SettingsSection;
   onBack: () => void;
   onOpenGeneral: () => void;
-  onOpenInboxes: () => void;
+  onOpenInboxes?: () => void;
+  onOpenMembers?: () => void;
 }) {
   return (
     <header className="shrink-0 border-b bg-background px-4 md:px-8">
@@ -29,9 +30,12 @@ export function SettingsHeader(props: {
         <SettingsTab active={props.active === "general"} onClick={props.onOpenGeneral}>
           通用
         </SettingsTab>
-        <SettingsTab active={props.active === "inboxes"} onClick={props.onOpenInboxes}>
+        {props.onOpenInboxes && <SettingsTab active={props.active === "inboxes"} onClick={props.onOpenInboxes}>
           收件箱
-        </SettingsTab>
+        </SettingsTab>}
+        {props.onOpenMembers && <SettingsTab active={props.active === "members"} onClick={props.onOpenMembers}>
+          成员与权限
+        </SettingsTab>}
       </nav>
     </header>
   );
