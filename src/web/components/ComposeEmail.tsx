@@ -16,7 +16,7 @@ export const useCompose = () => useContext(ComposeContext);
  * Address rows lead into an unboxed writing area; send/attachments stay in the
  * footer. Closing preserves the draft for this page session, including files.
  */
-export function ComposeEmailProvider({ children }: { children: ReactNode }) {
+export function ComposeEmailProvider({ children, isAdmin }: { children: ReactNode; isAdmin: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -38,14 +38,14 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
   const toRef = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const mailboxes = useQuery({ queryKey: ["mailboxes"], queryFn: fetchMailboxes, enabled: open });
-  const domains = useQuery({ queryKey: ["domains"], queryFn: fetchDomains, enabled: open });
+  const domains = useQuery({ queryKey: ["domains"], queryFn: fetchDomains, enabled: open && isAdmin });
   const hasDraft = Boolean(to || subject || text || files.length);
   const locked = sending || uncertain;
   const activeDomains = new Set(domains.data?.filter((domain) => domain.status === "active").map((domain) => domain.name.toLowerCase()));
-  const available = (mailboxes.data ?? []).filter((mailbox) => activeDomains.has(mailbox.address.split("@")[1]?.toLowerCase()));
+  const available = (mailboxes.data ?? []).filter((mailbox) => !isAdmin || activeDomains.has(mailbox.address.split("@")[1]?.toLowerCase()));
   const ready = available.some((mailbox) => String(mailbox.id) === mailboxId);
-  const loading = mailboxes.isLoading || domains.isLoading;
-  const loadError = mailboxes.isError || domains.isError;
+  const loading = mailboxes.isLoading || (isAdmin && domains.isLoading);
+  const loadError = mailboxes.isError || (isAdmin && domains.isError);
 
   useEffect(() => {
     if (!open || hasDraft || locked) return;
@@ -145,9 +145,9 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
           }}>
             <div className="min-h-0 flex-1 overflow-y-auto px-5">
               {loading ? <p className="py-4 text-sm text-muted-foreground" role="status">正在加载收件箱…</p> : loadError ? (
-                <div className="py-4 text-sm" role="alert">无法加载发件邮箱。<Button type="button" variant="link" onClick={() => { void mailboxes.refetch(); void domains.refetch(); }}>重试</Button></div>
+                <div className="py-4 text-sm" role="alert">无法加载发件邮箱。<Button type="button" variant="link" onClick={() => { void mailboxes.refetch(); if (isAdmin) void domains.refetch(); }}>重试</Button></div>
               ) : available.length === 0 ? (
-                <div className="py-4 text-sm"><p>请先设置收件箱并启用其域名，再发送邮件。</p><Button type="button" variant="link" className="px-0" onClick={setup}>设置收件箱</Button></div>
+                <div className="py-4 text-sm">{isAdmin ? <><p>请先设置收件箱并启用其域名，再发送邮件。</p><Button type="button" variant="link" className="px-0" onClick={setup}>设置收件箱</Button></> : <p>尚未分配收件箱，请联系管理员。</p>}</div>
               ) : null}
               <fieldset disabled={locked || loading || loadError || available.length === 0} className="min-w-0 disabled:opacity-60">
                 <div className="flex min-h-12 items-center gap-3 border-b">
