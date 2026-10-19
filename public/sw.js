@@ -8,12 +8,12 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "New email", body: "A new conversation arrived." };
+    payload = { title: "新邮件", body: "收到一封新邮件。" };
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title || "New email", {
-      body: payload.body || "A new conversation arrived.",
+    self.registration.showNotification(payload.title || "新邮件", {
+      body: payload.body || "收到一封新邮件。",
       tag: payload.tag,
       renotify: Boolean(payload.tag),
       data: payload.data || { url: "/inbox" },
