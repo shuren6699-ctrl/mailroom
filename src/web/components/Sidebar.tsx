@@ -12,6 +12,7 @@ export function Sidebar(props: {
   onOpenArchive: () => void;
   onOpenSettings: () => void;
   onCompose: () => void;
+  composeDisabled?: boolean;
 }) {
   const totalUnread = props.mailboxes.reduce((sum, mailbox) => sum + mailbox.unread_count, 0);
 
@@ -67,6 +68,7 @@ export function Sidebar(props: {
           type="button"
           variant="outline"
           onClick={props.onCompose}
+          disabled={props.composeDisabled}
           className="h-9 w-full justify-start gap-2.5 rounded-md px-2.5 text-[13px]"
         >
           <SquarePen className="h-4 w-4" aria-hidden="true" />
