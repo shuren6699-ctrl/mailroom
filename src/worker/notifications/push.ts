@@ -2,6 +2,7 @@ import { buildPushHTTPRequest } from "@pushforge/builder";
 import type { BrowserPushSubscription } from "../../shared/types";
 
 interface StoredPushSubscription {
+  member_email: string;
   endpoint: string;
   expiration_time: number | null;
   p256dh: string;
@@ -82,9 +83,18 @@ export async function notifyNewEmail(
   if (!settings?.browser_notifications_enabled) return;
 
   const { results } = await env.DB.prepare(
-    `SELECT endpoint, expiration_time, p256dh, auth
-     FROM push_subscriptions ORDER BY id`,
-  ).all<StoredPushSubscription>();
+    `SELECT p.endpoint, p.expiration_time, p.p256dh, p.auth, member.email AS member_email
+     FROM push_subscriptions p
+     JOIN members member ON member.email = p.member_email
+     JOIN threads thread ON thread.id = ?
+     WHERE member.enabled = 1
+       AND (member.role = 'admin' OR EXISTS (
+         SELECT 1 FROM member_mailboxes grant_access
+         WHERE grant_access.member_email = member.email
+           AND grant_access.mailbox_id = thread.mailbox_id
+       ))
+     ORDER BY p.id`,
+  ).bind(input.threadId).all<StoredPushSubscription>();
   if (results.length === 0) return;
 
   const payload = buildNewEmailNotification(input);
@@ -102,10 +112,12 @@ export async function notifyNewEmail(
           subscription: pushSubscription,
           message: {
             payload: {
-              title: payload.title,
-              body: payload.body,
+              // Legacy workers may still display these without recipient checks.
+              // Fetch private sender/subject only after authorization in the current worker.
+              title: "新邮件",
+              body: "打开收件箱查看新邮件。",
               tag: payload.tag,
-              data: { url: payload.data.url },
+              data: { url: payload.data.url, threadId: input.threadId, recipientEmail: subscription.member_email },
             },
             adminContact,
             options: {
