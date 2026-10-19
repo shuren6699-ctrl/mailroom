@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { requireSameOrigin } from "./csrf.ts";
 import { composeApi } from "./compose.ts";
+import type { ApiVariables } from "./context.ts";
+import { membersApi } from "./members.ts";
+import { loadPrincipal, mailboxScope, PermissionError, requireThread } from "../inbox/permissions.ts";
 import {
   DraftRevisionError,
   MAX_REVISION_INSTRUCTION_CHARS,
@@ -33,8 +36,53 @@ import type {
   ThreadLabel,
 } from "../../shared/types";
 
-export const api = new Hono<{ Bindings: Env }>();
+export const api = new Hono<{ Bindings: Env; Variables: ApiVariables }>();
 api.use("*", requireSameOrigin);
+api.use("*", async (c, next) => {
+  c.header("Cache-Control", "private, no-store");
+  const identity = c.get("accessIdentity");
+  if (!identity?.email) return c.json({ error: "请先登录" }, 401);
+  const principal = await loadPrincipal(c.env.DB, identity.email);
+  c.set("principal", principal);
+  const path = c.req.path.replace(/^\/api(?=\/|$)/, "").replace(/\/$/, "") || "/";
+  const method = c.req.method;
+  // New endpoints are denied unless explicitly classified here.
+  if (path === "/me" && method === "GET") return next();
+  if (principal.enabled && principal.role === "admin") return next();
+  if (method === "GET" && ["/mailboxes", "/labels", "/threads", "/search", "/settings/general"].includes(path)) return next();
+  if (!principal.enabled) return c.json({ error: "此账号尚未获分配收件箱，或已被停用" }, 403);
+  if (path === "/settings/browser-notifications" && ["POST", "DELETE"].includes(method)) return next();
+  if (path === "/compose" && method === "POST") return next(); // mailbox checked after parsing the form
+  if (path === "/threads/bulk" && method === "POST") return next(); // all ids checked before a write
+  const thread = path.match(/^\/threads\/(\d+)(?:\/(read|archive|unarchive|reply|draft(?:\/revise)?))?$/);
+  if (thread && ((method === "GET" && !thread[2]) || (method === "POST" && thread[2]))) {
+    await requireThread(c.env.DB, principal, Number(thread[1]));
+    return next();
+  }
+  const object = path.match(/^\/(attachments|drafts|draft-runs)\/(\d+)(?:\/(discard|retry))?$/);
+  if (object && ((object[1] === "attachments" && method === "GET" && !object[3]) ||
+      (object[1] === "drafts" && method === "POST" && object[3] === "discard") ||
+      (object[1] === "draft-runs" && method === "POST" && object[3] === "retry"))) {
+    const sql = object[1] === "attachments"
+      ? "SELECT m.thread_id FROM attachments a JOIN messages m ON m.id = a.message_id WHERE a.id = ?"
+      : `SELECT thread_id FROM ${object[1] === "drafts" ? "drafts" : "draft_runs"} WHERE id = ?`;
+    const row = await c.env.DB.prepare(sql).bind(Number(object[2])).first<{ thread_id: number }>();
+    if (!row) throw new PermissionError("记录不存在或你没有访问权限");
+    await requireThread(c.env.DB, principal, row.thread_id);
+    return next();
+  }
+  return c.json({ error: "仅管理员可以修改此设置" }, 403);
+});
+api.onError((error, c) => {
+  if (error instanceof PermissionError) return c.json({ error: error.message }, error.status);
+  console.error("API request failed", error);
+  return c.json({ error: "操作失败，请稍后重试" }, 500);
+});
+api.get("/me", (c) => {
+  const principal = c.get("principal");
+  return c.json({ email: principal.email, role: principal.role, enabled: principal.enabled, mailbox_ids: principal.mailboxIds });
+});
+api.route("/members", membersApi);
 api.route("/compose", composeApi);
 
 api.get("/settings/general", async (c) => {
@@ -42,18 +90,19 @@ api.get("/settings/general", async (c) => {
     c.env.DB.prepare(
       "SELECT browser_notifications_enabled, ai_model FROM global_settings WHERE id = 1",
     ).first<{ browser_notifications_enabled: number; ai_model: string | null }>(),
-    c.env.DB.prepare("SELECT COUNT(*) AS count FROM push_subscriptions")
+    c.env.DB.prepare("SELECT COUNT(*) AS count FROM push_subscriptions WHERE member_email = ?")
+      .bind(c.get("principal").email)
       .first<{ count: number }>(),
   ]);
   const configured = Boolean(
     c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_JWK && c.env.VAPID_SUBJECT,
   );
   const result: GeneralSettings = {
-    browser_notifications_enabled: Boolean(settings?.browser_notifications_enabled),
+    browser_notifications_enabled: Boolean(settings?.browser_notifications_enabled) && Number(subscriptions?.count ?? 0) > 0,
     browser_notifications_configured: configured,
     push_subscription_count: Number(subscriptions?.count ?? 0),
     vapid_public_key: configured ? c.env.VAPID_PUBLIC_KEY! : null,
-    ai_model: settings?.ai_model ?? null,
+    ai_model: c.get("principal").role === "admin" ? settings?.ai_model ?? null : null,
   };
   return c.json(result);
 });
@@ -84,16 +133,21 @@ api.post("/settings/browser-notifications", async (c) => {
   }
 
   const userAgent = c.req.header("User-Agent")?.slice(0, 512) ?? null;
+  const email = c.get("principal").email;
+  const existing = await c.env.DB.prepare("SELECT member_email FROM push_subscriptions WHERE endpoint = ?")
+    .bind(subscription.endpoint).first<{ member_email: string | null }>();
+  if (existing?.member_email && existing.member_email !== email) return c.json({ error: "此浏览器订阅已属于其他成员，请重新启用通知" }, 409);
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO push_subscriptions
-         (endpoint, expiration_time, p256dh, auth, user_agent)
-       VALUES (?, ?, ?, ?, ?)
+         (endpoint, expiration_time, p256dh, auth, user_agent, member_email)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(endpoint) DO UPDATE SET
          expiration_time = excluded.expiration_time,
          p256dh = excluded.p256dh,
          auth = excluded.auth,
          user_agent = excluded.user_agent,
+         member_email = excluded.member_email,
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
     ).bind(
       subscription.endpoint,
@@ -101,6 +155,7 @@ api.post("/settings/browser-notifications", async (c) => {
       subscription.keys.p256dh,
       subscription.keys.auth,
       userAgent,
+      email,
     ),
     c.env.DB.prepare(
       `UPDATE global_settings
@@ -113,15 +168,8 @@ api.post("/settings/browser-notifications", async (c) => {
 });
 
 api.delete("/settings/browser-notifications", async (c) => {
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `UPDATE global_settings
-       SET browser_notifications_enabled = 0,
-           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-       WHERE id = 1`,
-    ),
-    c.env.DB.prepare("DELETE FROM push_subscriptions"),
-  ]);
+  await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE member_email = ?")
+    .bind(c.get("principal").email).run();
   return c.json({ ok: true });
 });
 
@@ -132,7 +180,7 @@ api.get("/mailboxes", async (c) => {
         WHERE t.mailbox_id = m.id AND t.is_read = 0 AND t.status != 'archived') AS unread_count,
        EXISTS (SELECT 1 FROM threads t JOIN messages msg ON msg.thread_id = t.id
         WHERE t.mailbox_id = m.id AND msg.direction = 'inbound') AS has_received
-     FROM mailboxes m ORDER BY m.address`,
+     FROM mailboxes m WHERE ${mailboxScope(c.get("principal"), "m.id")} ORDER BY m.address`,
   ).all<Omit<Mailbox, "has_received"> & { has_received: number }>();
   return c.json(results.map((row) => ({ ...row, has_received: row.has_received === 1 })));
 });
@@ -377,7 +425,7 @@ api.get("/labels", async (c) => {
   const mailboxId = Number(c.req.query("mailbox_id") ?? 0);
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM labels
-     WHERE (? = 0 OR mailbox_id = ?)
+     WHERE (? = 0 OR mailbox_id = ?) AND ${mailboxScope(c.get("principal"), "mailbox_id")}
      ORDER BY mailbox_id, name`,
   )
     .bind(mailboxId, mailboxId)
@@ -478,6 +526,7 @@ api.get("/threads", async (c) => {
   const beforeAt = c.req.query("before_at") ?? "";
   const beforeId = parsePositiveId(c.req.query("before_id") ?? "") ?? 0;
   const conditions = [
+    mailboxScope(c.get("principal"), "t.mailbox_id"),
     "t.status = ?2",
     "(?3 = 0 OR EXISTS (SELECT 1 FROM thread_labels tl WHERE tl.thread_id = t.id AND tl.label_id = ?3))",
     "(?4 = '' OR t.last_message_at < ?4 OR (t.last_message_at = ?4 AND t.id < ?5))",
@@ -745,6 +794,9 @@ api.post("/threads/bulk", async (c) => {
     : undefined;
   if (!update) return c.json({ error: "action must be read, unread, archive or unarchive" }, 400);
 
+  // Validate the whole batch before changing anything, including mixed allowed/private ids.
+  await Promise.all(ids.map((id) => requireThread(c.env.DB, c.get("principal"), Number(id))));
+
   const placeholders = ids.map(() => "?").join(", ");
   const result = await c.env.DB.prepare(
     `UPDATE threads SET ${update} WHERE id IN (${placeholders})`,
@@ -896,6 +948,7 @@ api.get("/search", async (c) => {
        ORDER BY dr.created_at DESC, dr.id DESC LIMIT 1
      )
      WHERE messages_fts MATCH ?1
+       AND ${mailboxScope(c.get("principal"), "t.mailbox_id")}
        AND (?2 = 0 OR t.mailbox_id = ?2)
        AND (?3 = 0 OR EXISTS (
          SELECT 1 FROM thread_labels tl
