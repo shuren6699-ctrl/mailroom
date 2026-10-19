@@ -16,6 +16,12 @@ import {
   type InboxDataEnv,
 } from "../worker/inbox/conversations.ts";
 import { entityId, parseEntityId } from "../shared/entity-ids.ts";
+import {
+  loadPrincipal,
+  PermissionError,
+  requireMailbox,
+  requireThread,
+} from "../worker/inbox/permissions.ts";
 import type { McpIdentity } from "./auth-types.ts";
 
 export interface McpEnv extends InboxDataEnv, SendEmailEnv {
@@ -128,7 +134,7 @@ export function createMailroomServer(env: McpEnv, identity: McpIdentity): McpSer
         openWorldHint: false,
       },
     },
-    async () => toolCall(() => listInboxes(env)),
+    async () => toolCall(async () => listInboxes(env, await loadPrincipal(env.DB, identity.email))),
   );
 
   server.registerTool(
@@ -157,7 +163,9 @@ export function createMailroomServer(env: McpEnv, identity: McpIdentity): McpSer
     },
     async ({ query, inbox_id, status, unread, cursor, limit }) =>
       toolCall(async () => {
+        const principal = await loadPrincipal(env.DB, identity.email);
         const inboxId = inbox_id ? requireEntityId("inbox", inbox_id) : undefined;
+        if (inboxId !== undefined) requireMailbox(principal, inboxId);
         return searchConversations(env, {
           query,
           inboxId,
@@ -165,7 +173,7 @@ export function createMailroomServer(env: McpEnv, identity: McpIdentity): McpSer
           unread,
           cursor,
           limit,
-        });
+        }, principal);
       }),
   );
 
@@ -234,8 +242,9 @@ export function createMailroomServer(env: McpEnv, identity: McpIdentity): McpSer
     },
     async ({ conversation_id, message_limit }) =>
       toolCall(async () => {
+        const principal = await loadPrincipal(env.DB, identity.email);
         const id = requireEntityId("conversation", conversation_id);
-        const result = await getConversation(env, id, message_limit);
+        const result = await getConversation(env, id, message_limit, principal);
         if (!result) throw new ToolInputError("Conversation not found");
         return result;
       }),
@@ -265,7 +274,9 @@ export function createMailroomServer(env: McpEnv, identity: McpIdentity): McpSer
     },
     async ({ conversation_id, reply_to_message_id, expected_recipients, text, attachments, idempotency_key }) =>
       toolCall(async () => {
+        const principal = await loadPrincipal(env.DB, identity.email);
         const conversationId = requireEntityId("conversation", conversation_id);
+        await requireThread(env.DB, principal, conversationId);
         const inboundMessageId = requireEntityId("message", reply_to_message_id);
         const result = await sendReplyAttempt(env, {
           attemptId: await durableAttemptId("mcp_reply", identity.sub, idempotency_key),
@@ -306,7 +317,9 @@ export function createMailroomServer(env: McpEnv, identity: McpIdentity): McpSer
     },
     async ({ inbox_id, to, subject, text, attachments, idempotency_key }) =>
       toolCall(async () => {
+        const principal = await loadPrincipal(env.DB, identity.email);
         const inboxId = requireEntityId("inbox", inbox_id);
+        requireMailbox(principal, inboxId);
         const result = await sendNewEmailAttempt(env, {
           attemptId: await durableAttemptId("mcp_send", identity.sub, idempotency_key),
           mailboxId: inboxId,
@@ -339,7 +352,8 @@ async function toolCall<T extends Record<string, unknown>>(operation: () => Prom
       error instanceof ConversationInputError ||
       error instanceof ReplyIntentError ||
       error instanceof ComposeIntentError ||
-      error instanceof AttachmentInputError
+      error instanceof AttachmentInputError ||
+      error instanceof PermissionError
     ) {
       return failure(domainError(error));
     }
@@ -370,7 +384,7 @@ function failure(error: { code: string; message: string; retryable: boolean }) {
 
 function domainError(error: Error) {
   const status =
-    error instanceof ReplyIntentError || error instanceof ComposeIntentError
+    error instanceof ReplyIntentError || error instanceof ComposeIntentError || error instanceof PermissionError
       ? error.status
       : 400;
   const code = error.message.includes("Daily MCP send limit")
@@ -381,11 +395,13 @@ function domainError(error: Error) {
       ? "recipient_changed"
       : error.message.includes("already used")
         ? "idempotency_conflict"
-        : status === 404 || error.message.includes("not found")
-          ? "not_found"
-          : status >= 500
-            ? "provider_failed"
-            : "invalid_input";
+        : status === 403
+          ? "forbidden"
+          : status === 404 || error.message.includes("not found")
+            ? "not_found"
+            : status >= 500
+              ? "provider_failed"
+              : "invalid_input";
   return {
     code,
     message: error.message,
