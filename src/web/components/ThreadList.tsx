@@ -52,13 +52,15 @@ export function ThreadList(props: {
   error: boolean;
   detailsOpen: boolean;
   emptyInbox: boolean;
+  noMailboxAccess?: boolean;
+  composeDisabled?: boolean;
   onSearch: (q: string) => void;
   onFilter: (filter: ThreadFilter) => void;
   onSelectLabel: (id: number | null) => void;
   onSelectScope: (scope: ThreadScope) => void;
   onOpenSettings: () => void;
   onCompose: () => void;
-  onOpenMailboxSettings: (id: number) => void;
+  onOpenMailboxSettings?: (id: number) => void;
   onSelect: (id: number) => void;
   onMarkedUnread: (ids: number[]) => void;
 }) {
@@ -167,11 +169,11 @@ export function ThreadList(props: {
               <span className="sr-only">{showFetching ? "正在刷新会话" : ""}</span>
             </span>
           </div>
-          {props.selectedMailbox !== null && (
+          {props.selectedMailbox !== null && props.onOpenMailboxSettings && (
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => props.onOpenMailboxSettings(props.selectedMailbox!)}
+              onClick={() => props.onOpenMailboxSettings?.(props.selectedMailbox!)}
               aria-label="收件箱设置"
               title="收件箱设置"
               className="-mr-1.5 hidden text-muted-foreground lg:inline-flex"
@@ -203,7 +205,7 @@ export function ThreadList(props: {
                 <SelectItem value="archive">已归档</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="ghost" size="icon" onClick={props.onCompose} aria-label="写邮件" title="写邮件" className="shrink-0"><SquarePen className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={props.onCompose} disabled={props.composeDisabled} aria-label="写邮件" title="写邮件" className="shrink-0"><SquarePen className="h-4 w-4" /></Button>
             <Button
               variant="ghost"
               size="icon"
@@ -217,7 +219,7 @@ export function ThreadList(props: {
           </div>
         </div>
 
-        {!props.emptyInbox && (
+        {!props.emptyInbox && !props.noMailboxAccess && (
           <>
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -373,7 +375,9 @@ export function ThreadList(props: {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {props.emptyInbox && (
+        {props.noMailboxAccess && <ListState title="尚未分配收件箱，请联系管理员" detail="分配权限后，你就能在这里查看和处理邮件。" />}
+
+        {props.emptyInbox && !props.noMailboxAccess && (
           <ListState
             title="暂无会话"
             detail="收到的邮件会显示在这里。"
@@ -389,7 +393,7 @@ export function ThreadList(props: {
           />
         )}
 
-        {!props.emptyInbox && !props.loading && !props.error && visibleThreads.length === 0 && (
+        {!props.emptyInbox && !props.noMailboxAccess && !props.loading && !props.error && visibleThreads.length === 0 && (
           <ListState
             title={
               props.search || props.activeLabel !== null
