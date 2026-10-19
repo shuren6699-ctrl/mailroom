@@ -36,7 +36,7 @@ class FakeDb {
     if (sql.includes("SELECT t.id, t.mailbox_id, t.subject")) {
       return { id: 1, mailbox_id: 1, subject: "Help", mailbox_address: "support@example.com" };
     }
-    if (sql.includes("SELECT id, message_id, from_address")) {
+    if (sql.includes("FROM messages") && sql.includes("direction = 'inbound'")) {
       const requestedMessageId = args[1];
       if (requestedMessageId && requestedMessageId !== 9) return null;
       return {
