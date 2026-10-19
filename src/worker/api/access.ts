@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { createRemoteJWKSet, decodeJwt, errors, jwtVerify } from "jose";
+import type { ApiVariables } from "./context.ts";
 
 export interface WebAccessEnv {
   WEB_ACCESS_TEAM_DOMAIN?: string;
@@ -77,13 +78,14 @@ export async function verifyWebAccess(
   }
 }
 
-export const requireWebAccess: MiddlewareHandler<{ Bindings: WebAccessEnv }> = async (c, next) => {
+export const requireWebAccess: MiddlewareHandler<{ Bindings: WebAccessEnv; Variables: ApiVariables }> = async (c, next) => {
   c.header("Cache-Control", "private, no-store");
   const result = await verifyWebAccess(c.req.header("Cf-Access-Jwt-Assertion"), c.env);
   if (!result.ok) {
     const { status, code, error, hint } = result;
     return c.json({ error, code, ...(hint ? { hint } : {}) }, status);
   }
+  c.set("accessIdentity", result.identity);
   await next();
 };
 
