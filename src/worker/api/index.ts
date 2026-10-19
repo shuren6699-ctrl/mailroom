@@ -599,7 +599,10 @@ api.get("/threads/:id", async (c) => {
       .first<DraftRun>(),
   ]);
 
-  const messageRows = messages.results as unknown as Message[];
+  const messageRows = messages.results.map((row) => {
+    const { rfc_message_id, ...message } = row;
+    return { ...message, message_id: rfc_message_id ?? message.message_id };
+  }) as unknown as Message[];
   const messageIds = messageRows.map((message) => message.id);
   let attachments: Attachment[] = [];
   if (messageIds.length > 0) {
