@@ -58,6 +58,39 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const fetchMailboxes = () => request<Mailbox[]>("/mailboxes");
 
+export interface CurrentUser {
+  email: string;
+  role: "admin" | "member";
+  enabled: boolean;
+  mailbox_ids: number[];
+}
+
+export interface Member extends CurrentUser {
+  created_at: string;
+}
+
+export interface MembersResponse {
+  members: Member[];
+  mailboxes: Array<{ id: number; address: string }>;
+}
+
+export const fetchCurrentUser = () => request<CurrentUser>("/me");
+export const fetchMembers = () => request<MembersResponse>("/members");
+
+export const createMember = (input: { email: string; mailbox_ids: number[]; enabled?: boolean }) =>
+  request<Member>("/members", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+export const updateMember = (email: string, input: { enabled: boolean; mailbox_ids: number[] }) =>
+  request<Member>(`/members/${encodeURIComponent(email)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
 export class ComposeRequestError extends Error {
   constructor(message: string, readonly status: number) {
     super(localizeErrorMessage(message));
