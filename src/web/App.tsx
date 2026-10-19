@@ -216,11 +216,11 @@ function Workspace(props: {
   };
 
   const selectedMailboxName = isArchive
-    ? "Archive"
+    ? "已归档"
     : selectedMailbox === null
-      ? "All inboxes"
+      ? "所有收件箱"
       : (mailboxes.data?.find((mailbox) => mailbox.id === selectedMailbox)?.address ??
-        "Inbox");
+        "收件箱");
   const scopeUnread = (mailboxes.data ?? [])
     .filter((mailbox) => selectedMailbox === null || mailbox.id === selectedMailbox)
     .reduce((sum, mailbox) => sum + mailbox.unread_count, 0);
@@ -351,18 +351,18 @@ function EmptyReadingPane(props: { empty: boolean }) {
         <InboxIcon className="h-5 w-5" />
       </span>
       <p className="mt-3 text-[13px] font-medium text-foreground">
-        {props.empty ? "Nothing here yet" : "No conversation selected"}
+        {props.empty ? "这里还没有邮件" : "尚未选择会话"}
       </p>
       <p className="mt-1 max-w-64 text-[12.5px] leading-5 text-muted-foreground">
         {props.empty ? (
-          "New email sent to your inboxes will appear in the list."
+          "收到的新邮件会显示在左侧列表中。"
         ) : (
           <>
-            Choose one from the list, or press{" "}
+            从列表中选择会话，或按{" "}
             <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border bg-background px-1 align-[1px] font-sans text-[11px] font-medium">
               /
             </kbd>{" "}
-            to search.
+            搜索。
           </>
         )}
       </p>

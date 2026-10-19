@@ -1,4 +1,5 @@
 import type { BrowserPushSubscription } from "../shared/types";
+import { localizeErrorMessage } from "./ui-messages";
 
 export type BrowserNotificationPermission = NotificationPermission | "unsupported";
 
@@ -15,7 +16,7 @@ export class BrowserPushError extends Error {
     code: BrowserPushError["code"],
     message: string,
   ) {
-    super(message);
+    super(localizeErrorMessage(message));
     this.code = code;
   }
 }

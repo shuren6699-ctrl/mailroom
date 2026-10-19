@@ -13,6 +13,7 @@ import type {
   ThreadSummary,
   ThreadDetail,
 } from "../shared/types";
+import { localizeErrorMessage } from "./ui-messages";
 
 export interface AccessHint {
   team_domain: string;
@@ -26,7 +27,7 @@ export class ApiError extends Error {
     readonly code?: string,
     readonly hint?: AccessHint,
   ) {
-    super(message);
+    super(localizeErrorMessage(message));
   }
 }
 
@@ -59,7 +60,7 @@ export const fetchMailboxes = () => request<Mailbox[]>("/mailboxes");
 
 export class ComposeRequestError extends Error {
   constructor(message: string, readonly status: number) {
-    super(message);
+    super(localizeErrorMessage(message));
   }
 }
 

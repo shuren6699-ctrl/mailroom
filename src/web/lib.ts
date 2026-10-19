@@ -19,12 +19,12 @@ export function formatTime(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
   }
   if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    return date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
   }
-  return date.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString("zh-CN", { year: "numeric", month: "short", day: "numeric" });
 }
 
 export { splitQuotedTail } from "../shared/quote";

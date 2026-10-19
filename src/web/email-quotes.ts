@@ -22,10 +22,10 @@ export function collapseEmailQuotes(document: Document): void {
     const summary = document.createElement("summary");
     const show = document.createElement("span");
     show.className = "mailroom-show-quote";
-    show.textContent = "Show quoted text";
+    show.textContent = "展开引用内容";
     const hide = document.createElement("span");
     hide.className = "mailroom-hide-quote";
-    hide.textContent = "Hide quoted text";
+    hide.textContent = "收起引用内容";
     summary.append(show, hide);
     details.append(summary, range.extractContents());
     range.insertNode(details);
