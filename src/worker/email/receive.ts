@@ -1,8 +1,8 @@
 import PostalMime, { type Attachment, type Email } from "postal-mime";
-import { enqueueDraftRun } from "../agent/runs";
-import { splitQuotedTail } from "../../shared/quote";
-import { labelNewThread } from "./label";
-import { notifyNewEmail } from "../notifications/push";
+import { enqueueDraftRun } from "../agent/runs.ts";
+import { splitQuotedTail } from "../../shared/quote.ts";
+import { labelNewThread } from "./label.ts";
+import { notifyNewEmail } from "../notifications/push.ts";
 import {
   addressOf,
   addressesOf,
@@ -11,7 +11,7 @@ import {
   isAutoSubmitted,
   normalizeSubject,
   rawFingerprint,
-} from "./rules";
+} from "./rules.ts";
 
 export async function receiveEmail(
   message: ForwardableEmailMessage,
@@ -29,12 +29,7 @@ export async function receiveEmail(
   const parsed = await PostalMime.parse(rawBuffer);
   const messageId = parsed.messageId ?? `<raw-${fingerprint}@mailroom.invalid>`;
 
-  const duplicate = await env.DB.prepare(
-    `SELECT msg.id, msg.thread_id, msg.is_auto_submitted
-     FROM messages msg WHERE msg.message_id = ?`,
-  )
-    .bind(messageId)
-    .first<{ id: number; thread_id: number; is_auto_submitted: number }>();
+  const duplicate = await findInboundDelivery(env, mailbox.id, messageId);
   if (duplicate) {
     if (mailbox.agent_mode !== "off" && !duplicate.is_auto_submitted) {
       await enqueueIfExternal(env, duplicate.thread_id, duplicate.id, parsed);
@@ -61,27 +56,40 @@ export async function receiveEmail(
   const now = new Date().toISOString();
   const snippet = splitQuotedTail(textBody).main.replace(/\s+/g, " ").trim().slice(0, 140);
 
-  const stored = existingThreadId === null
-    ? await storeNewConversation(env, {
-        mailboxId: mailbox.id,
-        messageId,
-        parsed,
-        subject,
-        textBody,
-        rawKey,
-        snippet,
-        now,
-      })
-    : await appendToConversation(env, {
-        threadId: existingThreadId,
-        messageId,
-        parsed,
-        subject,
-        textBody,
-        rawKey,
-        snippet,
-        now,
-      });
+  let stored: { threadId: number; messageId: number };
+  try {
+    stored = existingThreadId === null
+      ? await storeNewConversation(env, {
+          mailboxId: mailbox.id,
+          messageId,
+          parsed,
+          subject,
+          textBody,
+          rawKey,
+          snippet,
+          now,
+        })
+      : await appendToConversation(env, {
+          mailboxId: mailbox.id,
+          threadId: existingThreadId,
+          messageId,
+          parsed,
+          subject,
+          textBody,
+          rawKey,
+          snippet,
+          now,
+        });
+  } catch (error) {
+    // A concurrent retry may have won the unique delivery-key insert. Its
+    // transaction owns attachments, counters and notifications; do not repeat them.
+    const delivered = await findInboundDelivery(env, mailbox.id, messageId);
+    if (!delivered) throw error;
+    if (mailbox.agent_mode !== "off" && !delivered.is_auto_submitted) {
+      await enqueueIfExternal(env, delivered.thread_id, delivered.id, parsed);
+    }
+    return;
+  }
 
   await storeAttachments(env, mailbox.id, stored.messageId, parsed.attachments);
 
@@ -146,8 +154,8 @@ async function resolveThread(
     const byHeader = await env.DB.prepare(
       `SELECT msg.thread_id AS id FROM messages msg
        JOIN threads t ON t.id = msg.thread_id
-       WHERE t.mailbox_id = ? AND msg.message_id IN (${placeholders})
-       ORDER BY msg.created_at DESC LIMIT 1`,
+       WHERE t.mailbox_id = ? AND COALESCE(msg.rfc_message_id, msg.message_id) IN (${placeholders})
+       ORDER BY msg.created_at DESC, msg.id DESC LIMIT 1`,
     )
       .bind(mailboxId, ...referencesIds)
       .first<{ id: number }>();
@@ -216,6 +224,7 @@ async function storeNewConversation(
 }
 
 interface StoredMessageInput {
+  mailboxId: number;
   messageId: string;
   parsed: Email;
   subject: string;
@@ -229,12 +238,13 @@ function insertMessage(env: Env, threadId: number, args: StoredMessageInput) {
   const fromName = parsed.from && "name" in parsed.from ? parsed.from.name : null;
   return env.DB.prepare(
     `INSERT INTO messages
-       (thread_id, message_id, in_reply_to, references_ids, direction, sent_by,
+       (thread_id, message_id, rfc_message_id, in_reply_to, references_ids, direction, sent_by,
         from_address, from_name, to_addresses, cc_addresses, reply_to_addresses,
         subject, text_body, html_body, raw_key, is_auto_submitted, created_at)
-     VALUES (?, ?, ?, ?, 'inbound', 'external', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, 'inbound', 'external', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     threadId,
+    JSON.stringify(["inbound", args.mailboxId, args.messageId]),
     args.messageId,
     parsed.inReplyTo ?? null,
     JSON.stringify(extractMessageIds(parsed)),
@@ -250,6 +260,17 @@ function insertMessage(env: Env, threadId: number, args: StoredMessageInput) {
     isAutoSubmitted(parsed) ? 1 : 0,
     args.now,
   );
+}
+
+async function findInboundDelivery(env: Env, mailboxId: number, rfcMessageId: string) {
+  return env.DB.prepare(
+    `SELECT msg.id, msg.thread_id, msg.is_auto_submitted
+     FROM messages msg JOIN threads t ON t.id = msg.thread_id
+     WHERE t.mailbox_id = ? AND msg.direction = 'inbound'
+       AND COALESCE(msg.rfc_message_id, msg.message_id) = ?`,
+  )
+    .bind(mailboxId, rfcMessageId)
+    .first<{ id: number; thread_id: number; is_auto_submitted: number }>();
 }
 
 async function storeAttachments(
@@ -305,4 +326,4 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-export { normalizeSubject } from "./rules";
+export { normalizeSubject } from "./rules.ts";
