@@ -21,6 +21,63 @@ export class BrowserPushError extends Error {
   }
 }
 
+const PUSH_OWNER_KEY = "mailroom.push-owner";
+let reconciledPushIdentity: string | null = null;
+let pushIdentityQueue: Promise<void> = Promise.resolve();
+
+/** Rotate endpoints across accounts, including subscriptions created before ownership tracking. */
+export function reconcileBrowserPushIdentity(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  const operation = pushIdentityQueue.catch(() => {}).then(async () => {
+    let recordedOwner: string | null = null;
+    let storageAvailable = false;
+    try {
+      recordedOwner = localStorage.getItem(PUSH_OWNER_KEY)?.trim().toLowerCase() ?? null;
+      storageAvailable = true;
+    } catch { /* Private browsing may deny local storage. */ }
+    if (reconciledPushIdentity === normalized && (!storageAvailable || recordedOwner === normalized)) return;
+
+    if (supportsBrowserPush()) {
+      const registration = await navigator.serviceWorker.getRegistration("/");
+      if (registration) {
+        // Install the recipient-checking worker before accepting an existing endpoint.
+        await registration.update();
+        await waitForUpdatedWorker(registration);
+        const sameOwner = storageAvailable && recordedOwner === normalized &&
+          (reconciledPushIdentity === null || reconciledPushIdentity === normalized);
+        if (!sameOwner) {
+          for (const notification of await registration.getNotifications()) notification.close();
+          await unsubscribeCurrentBrowser();
+        }
+      }
+    }
+    try { localStorage.setItem(PUSH_OWNER_KEY, normalized); } catch { /* Keep the in-memory identity. */ }
+    reconciledPushIdentity = normalized;
+  });
+  pushIdentityQueue = operation;
+  return operation;
+}
+
+async function waitForUpdatedWorker(registration: ServiceWorkerRegistration): Promise<void> {
+  const worker = registration.installing ?? registration.waiting;
+  if (!worker || worker.state === "activated") return;
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => finish(new Error("通知安全更新尚未完成，请重试。")), 10_000);
+    const onStateChange = () => {
+      if (worker.state === "activated") finish();
+      else if (worker.state === "redundant") finish(new Error("通知安全更新失败，请重试。"));
+    };
+    const finish = (error?: Error) => {
+      clearTimeout(timeout);
+      worker.removeEventListener("statechange", onStateChange);
+      if (error) reject(error);
+      else resolve();
+    };
+    worker.addEventListener("statechange", onStateChange);
+    onStateChange();
+  });
+}
+
 export async function getBrowserPushState(): Promise<BrowserPushState> {
   if (!supportsBrowserPush()) {
     return { supported: false, permission: "unsupported", subscribed: false };
@@ -98,7 +155,9 @@ export async function unsubscribeCurrentBrowser(): Promise<void> {
   if (!supportsBrowserPush()) return;
   const registration = await navigator.serviceWorker.getRegistration("/");
   const subscription = await registration?.pushManager.getSubscription();
-  if (subscription) await subscription.unsubscribe();
+  if (subscription && !(await subscription.unsubscribe())) {
+    throw new BrowserPushError("subscription-failed", "无法清除上一个账号的浏览器通知订阅，请重试。");
+  }
 }
 
 function supportsBrowserPush(): boolean {
