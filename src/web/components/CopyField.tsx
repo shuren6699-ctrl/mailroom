@@ -21,7 +21,7 @@ export function CopyField(props: { label?: string; value: string; placeholder?: 
       </code>
       {!props.placeholder && (
         <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={copy}>
-          {copied ? "Copied" : "Copy"}
+          {copied ? "已复制" : "复制"}
         </Button>
       )}
     </div>

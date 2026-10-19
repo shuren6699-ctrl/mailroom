@@ -55,7 +55,7 @@ export function EmailHtmlBody({
   return (
     <iframe
       ref={frameRef}
-      title={`Email from ${sender}`}
+      title={`来自 ${sender} 的邮件`}
       srcDoc={sourceDocument}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads"
       onLoad={fitContent}

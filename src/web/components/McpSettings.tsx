@@ -37,7 +37,7 @@ export function McpSettings() {
     <SettingsBlock
       id="mcp-settings-heading"
       title="MCP"
-      description="Add this URL to an MCP client to let it read and send email."
+      description="将此网址添加到 MCP 客户端，即可通过客户端读取和发送邮件。"
     >
       <SettingsPanel>
         <div className="px-4 py-4 sm:px-5">
@@ -47,10 +47,10 @@ export function McpSettings() {
         {status.data === false && (
           <div className="border-t px-4 py-4 text-[13px] leading-6 text-muted-foreground sm:px-5 [&_strong]:font-medium [&_strong]:text-foreground">
             <p>
-              Access is blocking MCP clients. In{" "}
-              <DashLink href={ACCESS_APPLICATIONS_URL}>Access applications</DashLink>, add a
-              Self-hosted app for these paths with a <strong>Bypass</strong> policy for{" "}
-              <strong>Everyone</strong>:
+              Access 正在阻止 MCP 客户端连接。请在{" "}
+              <DashLink href={ACCESS_APPLICATIONS_URL}>Access 应用程序</DashLink>中，
+              为以下路径添加自托管应用，并配置适用于<strong>所有人（Everyone）</strong>的
+              <strong>绕过（Bypass）</strong>策略：
             </p>
             <div className="mt-3 space-y-2">
               <CopyField value={`${host}/mcp`} />
@@ -63,7 +63,7 @@ export function McpSettings() {
               onClick={() => status.refetch()}
               disabled={status.isFetching}
             >
-              {status.isFetching ? "Checking…" : "Check again"}
+              {status.isFetching ? "正在检查…" : "重新检查"}
             </Button>
           </div>
         )}

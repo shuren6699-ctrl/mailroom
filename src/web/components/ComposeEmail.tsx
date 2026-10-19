@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { composeEmail, ComposeRequestError, fetchDomains, fetchMailboxes } from "../api";
+import { localizeErrorMessage } from "../ui-messages";
 import { MAX_ATTACHMENTS_PER_MESSAGE, MAX_ATTACHMENT_TOTAL_BYTES, MAX_MESSAGE_CHARS, MAX_SUBJECT_CHARS } from "../../shared/email-limits";
 import { PaperclipIcon, SendIcon, XIcon } from "./Icons";
 
@@ -71,7 +72,7 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
   const send = async () => {
     if (inFlight.current || confirmDiscard || (!uncertain && (!ready || !formRef.current?.reportValidity()))) return;
     if (!uncertain && !text.trim() && files.length === 0) {
-      setNotice("Write a message or attach a file before sending.");
+      setNotice("请先填写正文或添加附件，再发送邮件。");
       return;
     }
     if (!attempt.current) {
@@ -89,18 +90,18 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
         navigate(`/mailboxes/${sender}/threads/${result.conversation_id}`);
       } else if (result.status === "failed") {
         setUncertain(false); setFailed(true); attempt.current = null;
-        setNotice(result.error ?? "The email provider rejected this message. You can edit it and try again.");
+        setNotice(result.error ? localizeErrorMessage(result.error) : "邮件服务商拒绝了此邮件，请修改后重试。");
       } else {
         setUncertain(true);
-        setNotice("Send confirmation is pending. Check again before starting another message; this will not send a duplicate.");
+        setNotice("正在等待发送确认。请先再次查询状态，再撰写新邮件；查询不会重复发送。");
       }
     } catch (error) {
       if (!uncertain && error instanceof ComposeRequestError && error.status >= 400 && error.status < 500) {
         setUncertain(false); attempt.current = null;
-        setNotice(error.message);
+        setNotice(localizeErrorMessage(error.message));
       } else {
         setUncertain(true);
-        setNotice("The connection was interrupted, so we couldn’t confirm delivery. Check the same send again to avoid duplicates.");
+        setNotice("连接已中断，无法确认是否送达。请查询本次发送状态，以免重复发送。");
       }
     } finally {
       inFlight.current = false; setSending(false);
@@ -110,9 +111,9 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
   const addFiles = (selected: FileList | null) => {
     if (!selected) return;
     const next = [...files, ...selected];
-    if (next.length > MAX_ATTACHMENTS_PER_MESSAGE) setFileError("Attach up to 10 files per message.");
-    else if (next.some((file) => file.size === 0)) setFileError("Empty files cannot be attached.");
-    else if (next.reduce((size, file) => size + file.size, 0) > MAX_ATTACHMENT_TOTAL_BYTES) setFileError("Attachments must total 3 MB or less.");
+    if (next.length > MAX_ATTACHMENTS_PER_MESSAGE) setFileError("每封邮件最多添加 10 个附件。");
+    else if (next.some((file) => file.size === 0)) setFileError("无法添加空文件。");
+    else if (next.reduce((size, file) => size + file.size, 0) > MAX_ATTACHMENT_TOTAL_BYTES) setFileError("附件总大小不能超过 3 MB。");
     else { setFiles(next); setFileError(null); }
     if (fileInput.current) fileInput.current.value = "";
   };
@@ -133,9 +134,9 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
           onPointerDownOutside={(event) => event.preventDefault()}
         >
           <header className="flex shrink-0 items-center justify-between border-b px-5 py-4">
-            <DialogTitle>New message</DialogTitle>
-            <DialogDescription className="sr-only">Write a new email. Closing keeps your draft until you leave or reload this page.</DialogDescription>
-            <Button type="button" variant="ghost" size="icon" onClick={close} disabled={sending} aria-label="Close and keep draft" title="Close and keep draft">
+            <DialogTitle>写邮件</DialogTitle>
+            <DialogDescription className="sr-only">撰写新邮件。关闭窗口会保留草稿，直到离开或刷新此页面。</DialogDescription>
+            <Button type="button" variant="ghost" size="icon" onClick={close} disabled={sending} aria-label="关闭并保留草稿" title="关闭并保留草稿">
               <XIcon className="h-4 w-4" />
             </Button>
           </header>
@@ -143,39 +144,39 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
             if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void send(); }
           }}>
             <div className="min-h-0 flex-1 overflow-y-auto px-5">
-              {loading ? <p className="py-4 text-sm text-muted-foreground" role="status">Loading your inboxes…</p> : loadError ? (
-                <div className="py-4 text-sm" role="alert">Couldn’t load your sending inboxes. <Button type="button" variant="link" onClick={() => { void mailboxes.refetch(); void domains.refetch(); }}>Try again</Button></div>
+              {loading ? <p className="py-4 text-sm text-muted-foreground" role="status">正在加载收件箱…</p> : loadError ? (
+                <div className="py-4 text-sm" role="alert">无法加载发件邮箱。<Button type="button" variant="link" onClick={() => { void mailboxes.refetch(); void domains.refetch(); }}>重试</Button></div>
               ) : available.length === 0 ? (
-                <div className="py-4 text-sm"><p>Set up an inbox and activate its domain before sending.</p><Button type="button" variant="link" className="px-0" onClick={setup}>Set up an inbox</Button></div>
+                <div className="py-4 text-sm"><p>请先设置收件箱并启用其域名，再发送邮件。</p><Button type="button" variant="link" className="px-0" onClick={setup}>设置收件箱</Button></div>
               ) : null}
               <fieldset disabled={locked || loading || loadError || available.length === 0} className="min-w-0 disabled:opacity-60">
                 <div className="flex min-h-12 items-center gap-3 border-b">
-                  <label htmlFor="compose-from" className="w-14 shrink-0 text-sm text-muted-foreground">From</label>
+                  <label htmlFor="compose-from" className="w-14 shrink-0 text-sm text-muted-foreground">发件人</label>
                   <select id="compose-from" value={mailboxId} onChange={(event) => setMailboxId(event.target.value)} required className="min-w-0 flex-1 rounded-md bg-transparent py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <option value="" disabled>Choose an inbox</option>
+                    <option value="" disabled>选择收件箱</option>
                     {available.map((mailbox) => <option key={mailbox.id} value={mailbox.id}>{mailbox.address}</option>)}
                   </select>
                 </div>
                 <div className="flex min-h-12 items-center gap-3 border-b">
-                  <label htmlFor="compose-to" className="w-14 shrink-0 text-sm text-muted-foreground">To</label>
+                  <label htmlFor="compose-to" className="w-14 shrink-0 text-sm text-muted-foreground">收件人</label>
                   <Input ref={toRef} id="compose-to" type="email" autoComplete="off" required maxLength={254} placeholder="recipient@example.com" value={to} onChange={(event) => setTo(event.target.value)} className="min-w-0 border-0 shadow-none" />
                 </div>
                 <div className="flex min-h-12 items-center gap-3 border-b">
-                  <label htmlFor="compose-subject" className="w-14 shrink-0 text-sm text-muted-foreground">Subject</label>
-                  <Input id="compose-subject" required maxLength={MAX_SUBJECT_CHARS} placeholder="Add a subject" value={subject} onChange={(event) => setSubject(event.target.value)} className="min-w-0 border-0 shadow-none" />
+                  <label htmlFor="compose-subject" className="w-14 shrink-0 text-sm text-muted-foreground">主题</label>
+                  <Input id="compose-subject" required maxLength={MAX_SUBJECT_CHARS} placeholder="填写主题" value={subject} onChange={(event) => setSubject(event.target.value)} className="min-w-0 border-0 shadow-none" />
                 </div>
-                <label htmlFor="compose-body" className="sr-only">Message</label>
+                <label htmlFor="compose-body" className="sr-only">正文</label>
                 <textarea id="compose-body" value={text} onChange={(event) => setText(event.target.value)} onPaste={(event) => {
                   if (event.currentTarget.matches(":disabled") || event.clipboardData.files.length === 0) return;
                   event.preventDefault();
                   addFiles(event.clipboardData.files);
-                }} maxLength={MAX_MESSAGE_CHARS} placeholder="Write your message…" className="mt-3 min-h-44 w-full resize-y rounded-md bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:min-h-64" />
+                }} maxLength={MAX_MESSAGE_CHARS} placeholder="撰写邮件正文…" className="mt-3 min-h-44 w-full resize-y rounded-md bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:min-h-64" />
               </fieldset>
-              {files.length > 0 && <ul aria-label="Attachments" className="mb-4 space-y-1.5">{files.map((file, index) => (
+              {files.length > 0 && <ul aria-label="附件" className="mb-4 space-y-1.5">{files.map((file, index) => (
                 <li key={`${file.name}-${index}`} className="flex min-w-0 items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-xs">
                   <PaperclipIcon className="h-3.5 w-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate" title={file.name}>{file.name}</span>
                   <span className="shrink-0 text-muted-foreground">{Math.max(1, Math.ceil(file.size / 1024))} KB</span>
-                  <Button type="button" variant="ghost" size="icon-sm" disabled={locked} aria-label={`Remove ${file.name}`} onClick={() => { setFiles(files.filter((_, i) => i !== index)); setFileError(null); }}><XIcon className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="ghost" size="icon-sm" disabled={locked} aria-label={`移除附件 ${file.name}`} onClick={() => { setFiles(files.filter((_, i) => i !== index)); setFileError(null); }}><XIcon className="h-3.5 w-3.5" /></Button>
                 </li>
               ))}</ul>}
               {fileError && <p role="alert" className="mb-3 text-sm text-destructive">{fileError}</p>}
@@ -183,14 +184,14 @@ export function ComposeEmailProvider({ children }: { children: ReactNode }) {
             </div>
             <footer className="shrink-0 border-t bg-muted/30 px-5 py-4">
               {confirmDiscard ? (
-                <div role="alert" className="flex flex-wrap items-center gap-2"><p className="mr-auto text-sm">Discard this unsent message?</p><Button type="button" variant="outline" onClick={() => setConfirmDiscard(false)}>Keep writing</Button><Button type="button" variant="destructive" onClick={() => { reset(); setOpen(false); }}>Discard message</Button></div>
+                <div role="alert" className="flex flex-wrap items-center gap-2"><p className="mr-auto text-sm">丢弃这封尚未发送的邮件？</p><Button type="button" variant="outline" onClick={() => setConfirmDiscard(false)}>继续撰写</Button><Button type="button" variant="destructive" onClick={() => { reset(); setOpen(false); }}>丢弃邮件</Button></div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Button type="submit" disabled={sending || (!uncertain && (!ready || loading || loadError))}><SendIcon className="h-4 w-4" />{sending ? (uncertain ? "Checking…" : "Sending…") : uncertain ? "Check send status" : failed ? "Send again" : "Send"}</Button>
+                  <Button type="submit" disabled={sending || (!uncertain && (!ready || loading || loadError))}><SendIcon className="h-4 w-4" />{sending ? (uncertain ? "正在查询…" : "正在发送…") : uncertain ? "查询发送状态" : failed ? "重新发送" : "发送"}</Button>
                   <input ref={fileInput} type="file" multiple className="hidden" onChange={(event) => addFiles(event.target.files)} tabIndex={-1} />
-                  <Button type="button" variant="ghost" size="icon" disabled={locked} aria-label="Attach files" title="Attach files (up to 10 files, 3 MB total)" onClick={() => fileInput.current?.click()}><PaperclipIcon className="h-4 w-4" /></Button>
-                  <span className="hidden text-xs text-muted-foreground sm:inline">3 MB attachment limit</span>
-                  <Button type="button" variant="ghost" disabled={locked} className="ml-auto text-muted-foreground" onClick={() => hasDraft ? setConfirmDiscard(true) : (reset(), setOpen(false))}>Discard</Button>
+                  <Button type="button" variant="ghost" size="icon" disabled={locked} aria-label="添加附件" title="添加附件（最多 10 个文件，总计 3 MB）" onClick={() => fileInput.current?.click()}><PaperclipIcon className="h-4 w-4" /></Button>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">附件总大小上限 3 MB</span>
+                  <Button type="button" variant="ghost" disabled={locked} className="ml-auto text-muted-foreground" onClick={() => hasDraft ? setConfirmDiscard(true) : (reset(), setOpen(false))}>丢弃</Button>
                 </div>
               )}
             </footer>

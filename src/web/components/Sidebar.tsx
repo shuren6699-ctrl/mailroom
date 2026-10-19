@@ -30,17 +30,17 @@ export function Sidebar(props: {
         </p>
       </div>
 
-      <nav aria-label="Mail" className="min-h-0 flex-1 overflow-y-auto px-2 pt-1 pb-4">
+      <nav aria-label="邮件" className="min-h-0 flex-1 overflow-y-auto px-2 pt-1 pb-4">
         <div className="space-y-px">
           <SidebarItem
-            label="All inboxes"
+            label="所有收件箱"
             icon={<InboxIcon className="h-4 w-4" />}
             unread={totalUnread}
             active={props.activeView === "inbox" && props.selected === null}
             onClick={() => props.onSelect(null)}
           />
           {props.mailboxes.length > 0 && (
-            <div role="group" aria-label="Inboxes" className="ml-[18px] space-y-px border-l pl-[7px]">
+            <div role="group" aria-label="收件箱" className="ml-[18px] space-y-px border-l pl-[7px]">
               {props.mailboxes.map((mailbox) => (
                 <SidebarItem
                   key={mailbox.id}
@@ -53,7 +53,7 @@ export function Sidebar(props: {
             </div>
           )}
           <SidebarItem
-            label="Archive"
+            label="已归档"
             icon={<ArchiveIcon className="h-4 w-4" />}
             unread={0}
             active={props.activeView === "archive"}
@@ -70,13 +70,13 @@ export function Sidebar(props: {
           className="h-9 w-full justify-start gap-2.5 rounded-md px-2.5 text-[13px]"
         >
           <SquarePen className="h-4 w-4" aria-hidden="true" />
-          Compose
+          写邮件
         </Button>
       </div>
 
       <div className="shrink-0 border-t px-3 py-2">
         <SidebarItem
-          label="Settings"
+          label="设置"
           icon={<SettingsIcon className="h-4 w-4" />}
           unread={0}
           active={props.activeView === "settings"}
@@ -125,7 +125,7 @@ function SidebarItem(props: {
             props.active ? "font-semibold text-foreground" : "font-medium text-muted-foreground",
           )}
         >
-          <span className="sr-only">, unread: </span>
+          <span className="sr-only">，未读：</span>
           {props.unread > 99 ? "99+" : props.unread}
         </span>
       )}

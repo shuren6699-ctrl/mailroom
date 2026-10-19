@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { formatTime, splitQuotedTail } from "../lib";
+import { localizeErrorMessage } from "../ui-messages";
 import { EmailAvatar } from "./EmailAvatar";
 import { EmailHtmlBody } from "./EmailHtmlBody";
 import {
@@ -128,7 +129,7 @@ export function ThreadView(props: {
       setFailedAttemptKey(null);
       setSendNotice(
         result.status === "sending"
-          ? "The provider accepted this send request, but confirmation is still pending. It will not be sent again automatically."
+          ? "邮件服务商已接受此发送请求，正在等待确认。系统不会自动重复发送。"
           : null,
       );
       invalidateAll();
@@ -202,7 +203,7 @@ export function ThreadView(props: {
             size="icon"
             onClick={props.onBack}
             className="-ml-1"
-            aria-label="Back to conversations"
+            aria-label="返回会话列表"
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </Button>
@@ -211,12 +212,12 @@ export function ThreadView(props: {
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <InboxIcon className="h-[18px] w-[18px]" />
           </span>
-          <p className="mt-3 text-[13px] font-medium text-foreground">Couldn’t open this conversation</p>
+          <p className="mt-3 text-[13px] font-medium text-foreground">无法打开此会话</p>
           <p className="mt-1 text-[12.5px] text-muted-foreground">
-            It may have been archived or deleted, or the connection dropped.
+            会话可能已被归档或删除，或网络连接已断开。
           </p>
           <Button variant="outline" onClick={() => detail.refetch()} className="mt-4">
-            Try again
+            重试
           </Button>
         </div>
       </div>
@@ -303,7 +304,7 @@ export function ThreadView(props: {
           size="icon"
           onClick={props.onBack}
           className="-ml-1 md:hidden"
-          aria-label="Back to conversations"
+          aria-label="返回会话列表"
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </Button>
@@ -312,13 +313,13 @@ export function ThreadView(props: {
             className="truncate text-[15px] font-semibold tracking-[-0.015em] text-foreground"
             title={thread.subject || undefined}
           >
-            {thread.subject || "(no subject)"}
+            {thread.subject || "（无主题）"}
           </h1>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
             <span className="truncate">{thread.mailbox_address}</span>
             <span aria-hidden="true">·</span>
             <span className="shrink-0 tabular-nums">
-              {thread.message_count} {thread.message_count === 1 ? "message" : "messages"}
+              {thread.message_count} 封邮件
             </span>
             {thread.labels.length > 0 && (
               <span className="ml-1 hidden min-w-0 items-center gap-1 overflow-hidden sm:flex">
@@ -339,8 +340,8 @@ export function ThreadView(props: {
         <Button
           variant="outline"
           size="icon"
-          title="Mark unread"
-          aria-label="Mark conversation as unread"
+          title="标记为未读"
+          aria-label="将会话标记为未读"
           disabled={markUnread.isPending || moveThread.isPending}
           onPointerDown={(event) => event.stopPropagation()}
           onKeyDown={(event) => event.stopPropagation()}
@@ -354,12 +355,12 @@ export function ThreadView(props: {
             variant="outline"
             onClick={() => moveThread.mutate("unarchive")}
             disabled={moveThread.isPending || markUnread.isPending}
-            aria-label="Move conversation to inbox"
+            aria-label="将会话移回收件箱"
             className="shrink-0"
           >
             <InboxIcon className="h-4 w-4" />
             <span className="hidden sm:inline">
-              {moveThread.isPending ? "Moving…" : "Move to inbox"}
+              {moveThread.isPending ? "正在移动…" : "移回收件箱"}
             </span>
           </Button>
         ) : (
@@ -367,12 +368,12 @@ export function ThreadView(props: {
             variant="outline"
             onClick={() => moveThread.mutate("archive")}
             disabled={moveThread.isPending || markUnread.isPending}
-            aria-label="Archive conversation"
+            aria-label="归档会话"
             className="shrink-0"
           >
             <ArchiveIcon className="h-4 w-4" />
             <span className="hidden sm:inline">
-              {moveThread.isPending ? "Archiving…" : "Archive"}
+              {moveThread.isPending ? "正在归档…" : "归档"}
             </span>
           </Button>
         )}
@@ -380,7 +381,7 @@ export function ThreadView(props: {
 
       {markUnread.isError && (
         <p role="alert" className="border-b bg-background px-4 py-2 text-sm text-destructive md:px-6">
-          Couldn’t mark this conversation as unread. Please try again.
+          无法将此会话标记为未读，请重试。
         </p>
       )}
 
@@ -397,7 +398,7 @@ export function ThreadView(props: {
           <Card className="gap-0 py-0 shadow-[0_1px_2px_oklch(0.2_0.012_265/0.04),0_4px_16px_-6px_oklch(0.2_0.012_265/0.08)] transition-shadow focus-within:ring-foreground/25">
             <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/70 py-1 pr-2 pl-3.5 text-xs text-muted-foreground">
               <span className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 py-1">
-                <span className="shrink-0">Replying from</span>
+                <span className="shrink-0">发件邮箱</span>
                 <span className="truncate font-medium text-foreground/80" title={thread.mailbox_address}>
                   {thread.mailbox_address}
                 </span>
@@ -407,7 +408,7 @@ export function ThreadView(props: {
                 draft={draft}
                 usingDraft={draft !== null && usedDraftId === draft.id}
                 canDraft={messages.some((message) => message.direction === "inbound")}
-                error={detail.data.draft_run?.error ?? null}
+                error={detail.data.draft_run?.error ? localizeErrorMessage(detail.data.draft_run.error) : null}
                 busy={discard.isPending}
                 disabled={reply.isPending || revise.isPending}
                 instructionOpen={instructionOpen}
@@ -429,7 +430,7 @@ export function ThreadView(props: {
                 hasReply={replyText.trim().length > 0}
                 pending={revise.isPending}
                 disabled={reply.isPending || discard.isPending}
-                error={revise.error instanceof Error ? revise.error.message : null}
+                error={revise.error instanceof Error ? localizeErrorMessage(revise.error.message) : null}
                 onSubmit={submitInstruction}
                 onClose={closeInstruction}
               />
@@ -455,13 +456,13 @@ export function ThreadView(props: {
                   submitReply();
                 }
               }}
-              placeholder="Write a reply…"
+              placeholder="撰写回复…"
               rows={3}
-              aria-label="Reply"
+              aria-label="回复内容"
               className="max-h-[min(30dvh,200px)] min-h-[84px] resize-none overflow-y-auto overscroll-contain rounded-none border-0 bg-transparent px-3.5 py-3 text-sm leading-6 shadow-none transition-opacity duration-300 ease-out focus-visible:ring-0 disabled:bg-transparent aria-busy:opacity-40 md:text-sm"
             />
             {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-3.5 pb-1" aria-label="Attachments to send">
+              <div className="flex flex-wrap gap-1.5 px-3.5 pb-1" aria-label="待发送的附件">
                 {pendingFiles.map((file, index) => (
                   <span
                     key={`${file.name}-${index}`}
@@ -474,7 +475,7 @@ export function ThreadView(props: {
                     </span>
                     <button
                       type="button"
-                      aria-label={`Remove ${file.name}`}
+                      aria-label={`移除附件 ${file.name}`}
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       onClick={() =>
                         setPendingFiles((current) =>
@@ -492,7 +493,7 @@ export function ThreadView(props: {
               <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
                 <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
                 <Kbd>Enter</Kbd>
-                <span className="ml-0.5">to send</span>
+                <span className="ml-0.5">发送</span>
               </span>
               <div className="flex items-center gap-1.5">
                 <input
@@ -506,8 +507,8 @@ export function ThreadView(props: {
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground"
-                  aria-label="Attach files"
-                  title="Attach files"
+                  aria-label="添加附件"
+                  title="添加附件"
                   disabled={reply.isPending}
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -518,14 +519,14 @@ export function ThreadView(props: {
                   disabled={(!replyText.trim() && pendingFiles.length === 0) || composerBusy}
                 >
                   <SendIcon className="h-3.5 w-3.5" />
-                  {reply.isPending ? "Sending…" : "Send reply"}
+                  {reply.isPending ? "正在发送…" : "发送回复"}
                 </Button>
               </div>
             </div>
           </Card>
           {discard.isError && (
             <p role="alert" className="mt-2 text-xs leading-5 text-destructive">
-              Couldn’t discard the AI draft. Your text is still here. Try again.
+              无法丢弃 AI 草稿。回复内容已保留，请重试。
             </p>
           )}
           {reply.isError && (
@@ -534,8 +535,8 @@ export function ThreadView(props: {
               className="mt-2 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive"
             >
               <p className="min-w-0 flex-1">
-                {reply.error instanceof Error ? reply.error.message : "The reply could not be sent."}
-                {" "}Your text is still here. Check Email Logs before creating a new send attempt.
+                {reply.error instanceof Error ? localizeErrorMessage(reply.error.message) : "回复发送失败。"}
+                {" "}回复内容已保留。再次尝试发送前，请先查看邮件日志。
               </p>
               {failedAttemptKey && (
                 <Button
@@ -548,7 +549,7 @@ export function ThreadView(props: {
                     reply.reset();
                   }}
                 >
-                  New attempt
+                  重新尝试
                 </Button>
               )}
             </div>
@@ -587,17 +588,17 @@ function MessageCard({ message }: { message: Message }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13.5px] font-semibold text-foreground">{displayName}</span>
-            {message.sent_by === "agent" && <AuthorBadge tone="agent">Agent</AuthorBadge>}
-            {isOutbound && message.sent_by === "human" && <AuthorBadge tone="human">You</AuthorBadge>}
+            {message.sent_by === "agent" && <AuthorBadge tone="agent">AI 助手</AuthorBadge>}
+            {isOutbound && message.sent_by === "human" && <AuthorBadge tone="human">你</AuthorBadge>}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
-            {isOutbound ? `to ${JSON.parse(message.to_addresses || "[]").join(", ")}` : message.from_address}
+            {isOutbound ? `收件人：${JSON.parse(message.to_addresses || "[]").join(", ")}` : message.from_address}
           </div>
         </div>
         <time
           dateTime={message.created_at}
           className="mt-0.5 shrink-0 text-xs tabular-nums text-muted-foreground"
-          title={new Date(message.created_at).toLocaleString()}
+          title={new Date(message.created_at).toLocaleString("zh-CN")}
         >
           {formatTime(message.created_at)}
         </time>
@@ -615,7 +616,7 @@ function MessageCard({ message }: { message: Message }) {
         </div>
       )}
       {message.attachments.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2" aria-label="Attachments">
+        <div className="mt-4 flex flex-wrap gap-2" aria-label="附件">
           {message.attachments.map((attachment) => (
             <a
               key={attachment.id}
@@ -624,7 +625,7 @@ function MessageCard({ message }: { message: Message }) {
               className="inline-flex max-w-full items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <PaperclipIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 truncate">{attachment.filename || "Attachment"}</span>
+              <span className="min-w-0 truncate">{attachment.filename || "附件"}</span>
               <span className="shrink-0 text-muted-foreground">{formatFileSize(attachment.size)}</span>
             </a>
           ))}
@@ -639,7 +640,7 @@ function MessageCard({ message }: { message: Message }) {
             aria-expanded={showQuoted}
             className="-ml-2 text-muted-foreground"
           >
-            {showQuoted ? "Hide quoted text" : "Show quoted text"}
+            {showQuoted ? "收起引用内容" : "展开引用内容"}
           </Button>
           {showQuoted && (
             <div className="mt-2 break-words border-l border-border pl-3 text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
@@ -691,8 +692,8 @@ function DraftAssist(props: {
 
   if (props.draft) {
     const context = [
-      props.draft.playbook_name ? `Playbook: ${props.draft.playbook_name}` : null,
-      props.draft.agent_notes,
+      props.draft.playbook_name ? `回复指南：${props.draft.playbook_name}` : null,
+      formatAgentNotes(props.draft.agent_notes),
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -701,17 +702,17 @@ function DraftAssist(props: {
         <span role="status" className="flex min-w-0 items-center gap-1.5" title={context || undefined}>
           <SparklesIcon className="h-3 w-3 shrink-0 text-foreground/70" />
           <span className="shrink-0 font-medium text-foreground/80">
-            {props.usingDraft ? "AI draft" : "New AI draft"}
+            {props.usingDraft ? "AI 草稿" : "新的 AI 草稿"}
           </span>
           {props.usingDraft && props.draft.playbook_name && (
             <span className="min-w-0 truncate">· {props.draft.playbook_name}</span>
           )}
         </span>
         <span className="flex shrink-0 items-center gap-1">
-          {props.canUndo && action("Undo", props.onUndo, "Restore the reply from before this rewrite")}
-          {!props.usingDraft && action("Replace", props.onUse, "Replace reply with AI draft")}
-          {reviseAction("Revise", "Tell AI how to change this reply")}
-          {action(props.busy ? "Discarding…" : "Discard", props.onDiscard, "Discard AI draft and clear reply")}
+          {props.canUndo && action("撤销", props.onUndo, "恢复改写前的回复")}
+          {!props.usingDraft && action("替换", props.onUse, "用 AI 草稿替换回复")}
+          {reviseAction("修改", "告诉 AI 如何修改回复")}
+          {action(props.busy ? "正在丢弃…" : "丢弃", props.onDiscard, "丢弃 AI 草稿并清空回复")}
         </span>
       </span>
     );
@@ -721,7 +722,7 @@ function DraftAssist(props: {
     return (
       <span role="status" className="flex shrink-0 items-center gap-1.5 px-1.5">
         <SparklesIcon className="h-3 w-3 animate-pulse" />
-        Drafting…
+        正在生成草稿…
       </span>
     );
   }
@@ -731,11 +732,26 @@ function DraftAssist(props: {
   return (
     <span className="flex shrink-0 items-center gap-2.5">
       {props.status === "failed" && (
-        <span title={props.error ?? undefined}>Automatic draft failed</span>
+        <span title={props.error ?? undefined}>自动生成草稿失败</span>
       )}
-      {reviseAction("Draft with AI", "Ask AI to draft a reply, optionally with an instruction")}
+      {reviseAction("AI 起草", "让 AI 起草回复，可添加写作要求")}
     </span>
   );
+}
+
+function formatAgentNotes(note: string | null): string | null {
+  if (!note) return note;
+  const withPlaybook = note.match(/^Generated by (.+) using “(.+)” from the last (\d+) message\(s\)\.$/);
+  if (withPlaybook) {
+    const [, model, playbook, count] = withPlaybook;
+    return `由 ${model} 根据最近 ${count} 封邮件并参考“${playbook}”生成。`;
+  }
+  const withoutPlaybook = note.match(/^Generated by (.+) from the last (\d+) message\(s\); no playbook matched\.$/);
+  if (withoutPlaybook) {
+    const [, model, count] = withoutPlaybook;
+    return `由 ${model} 根据最近 ${count} 封邮件生成；未匹配到回复指南。`;
+  }
+  return note;
 }
 
 function InstructionBar(props: {
@@ -749,7 +765,7 @@ function InstructionBar(props: {
   onSubmit: () => void;
   onClose: () => void;
 }) {
-  const verb = props.hasReply ? "Rewrite" : "Draft";
+  const verb = props.hasReply ? "改写" : "生成草稿";
   return (
     <div className="border-b border-border/70 bg-muted/35">
       <form
@@ -775,12 +791,12 @@ function InstructionBar(props: {
           }}
           disabled={props.pending || props.disabled}
           maxLength={2000}
-          aria-label="Instruction for the AI draft"
+          aria-label="AI 草稿写作要求"
           aria-invalid={props.error ? true : undefined}
           placeholder={
             props.hasReply
-              ? "How should AI change this reply? e.g. shorter, firmer on the refund"
-              : "Optional: tell AI what to write, e.g. decline politely"
+              ? "希望 AI 如何修改？例如：更简短、明确退款立场"
+              : "可选：告诉 AI 写什么，例如：礼貌拒绝"
           }
           className="h-8 min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
@@ -792,7 +808,7 @@ function InstructionBar(props: {
           disabled={props.pending || props.disabled}
         >
           {props.pending && <SparklesIcon className="animate-pulse" />}
-          {props.pending ? `${verb === "Rewrite" ? "Rewriting" : "Drafting"}…` : verb}
+          {props.pending ? `${props.hasReply ? "正在改写" : "正在起草"}…` : verb}
           {!props.pending && (
             <span className="hidden sm:contents">
               <Kbd>↵</Kbd>
@@ -804,8 +820,8 @@ function InstructionBar(props: {
           variant="ghost"
           size="icon-xs"
           className="shrink-0 text-muted-foreground"
-          aria-label="Close AI instruction"
-          title="Close (Esc)"
+          aria-label="关闭 AI 写作要求"
+          title="关闭（Esc）"
           disabled={props.pending}
           onClick={props.onClose}
         >
@@ -814,7 +830,7 @@ function InstructionBar(props: {
       </form>
       {props.error && (
         <p role="alert" className="px-3.5 pb-2 text-xs leading-5 text-destructive">
-          {props.error} Your reply is unchanged.
+          {props.error} 回复内容未更改。
         </p>
       )}
     </div>
@@ -850,14 +866,14 @@ function AuthorBadge(props: { tone: "agent" | "human"; children: React.ReactNode
 
 function ThreadViewSkeleton({ onBack }: { onBack: () => void }) {
   return (
-    <div className="flex h-full flex-col bg-canvas" aria-busy="true" aria-label="Loading conversation">
+    <div className="flex h-full flex-col bg-canvas" aria-busy="true" aria-label="正在加载会话">
       <div className="flex h-16 items-center gap-3 border-b bg-background px-4 md:px-6">
         <Button
           variant="ghost"
           size="icon"
           onClick={onBack}
           className="-ml-1 md:hidden"
-          aria-label="Back to conversations"
+          aria-label="返回会话列表"
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </Button>

@@ -19,18 +19,18 @@ export function SettingsHeader(props: {
           size="icon"
           onClick={props.onBack}
           className="-ml-1.5 lg:hidden"
-          aria-label="Back to inbox"
+          aria-label="返回收件箱"
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </Button>
-        <h1 className="text-[15px] font-semibold tracking-[-0.015em] text-foreground">Settings</h1>
+        <h1 className="text-[15px] font-semibold tracking-[-0.015em] text-foreground">设置</h1>
       </div>
-      <nav aria-label="Settings sections" className="-mb-px flex gap-5">
+      <nav aria-label="设置分类" className="-mb-px flex gap-5">
         <SettingsTab active={props.active === "general"} onClick={props.onOpenGeneral}>
-          General
+          通用
         </SettingsTab>
         <SettingsTab active={props.active === "inboxes"} onClick={props.onOpenInboxes}>
-          Inboxes
+          收件箱
         </SettingsTab>
       </nav>
     </header>

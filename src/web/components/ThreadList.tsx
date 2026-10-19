@@ -164,7 +164,7 @@ export function ThreadList(props: {
                   showFetching ? "animate-spin opacity-100" : "opacity-0"
                 }`}
               />
-              <span className="sr-only">{showFetching ? "Refreshing conversations" : ""}</span>
+              <span className="sr-only">{showFetching ? "正在刷新会话" : ""}</span>
             </span>
           </div>
           {props.selectedMailbox !== null && (
@@ -172,8 +172,8 @@ export function ThreadList(props: {
               variant="ghost"
               size="icon"
               onClick={() => props.onOpenMailboxSettings(props.selectedMailbox!)}
-              aria-label="Inbox settings"
-              title="Inbox settings"
+              aria-label="收件箱设置"
+              title="收件箱设置"
               className="-mr-1.5 hidden text-muted-foreground lg:inline-flex"
             >
               <SettingsIcon className="h-4 w-4" />
@@ -189,27 +189,27 @@ export function ThreadList(props: {
             >
               <SelectTrigger
                 className="-ml-2 h-8 min-w-0 max-w-[calc(100%-2.75rem)] border-transparent px-2 text-[15px] font-semibold shadow-none hover:bg-muted"
-                aria-label="Choose inbox"
+                aria-label="选择收件箱"
               >
-                <SelectValue placeholder="All inboxes" />
+                <SelectValue placeholder="所有收件箱" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All inboxes</SelectItem>
+                <SelectItem value="all">所有收件箱</SelectItem>
                 {props.mailboxes.map((mailbox) => (
                   <SelectItem key={mailbox.id} value={String(mailbox.id)}>
                     {mailbox.address}
                   </SelectItem>
                 ))}
-                <SelectItem value="archive">Archive</SelectItem>
+                <SelectItem value="archive">已归档</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="ghost" size="icon" onClick={props.onCompose} aria-label="Compose new message" title="Compose new message" className="shrink-0"><SquarePen className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={props.onCompose} aria-label="写邮件" title="写邮件" className="shrink-0"><SquarePen className="h-4 w-4" /></Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={props.onOpenSettings}
-              aria-label="Open settings"
-              title="Settings"
+              aria-label="打开设置"
+              title="设置"
               className="-mr-1.5 text-muted-foreground"
             >
               <SettingsIcon className="h-[18px] w-[18px]" />
@@ -231,8 +231,8 @@ export function ThreadList(props: {
                     event.currentTarget.blur();
                   }
                 }}
-                placeholder="Search conversations"
-                aria-label="Search conversations"
+                placeholder="搜索会话"
+                aria-label="搜索会话"
                 className="h-9 w-full bg-muted/50 pr-9 pl-8.5 text-[13px] focus-visible:bg-background"
               />
               {props.search ? (
@@ -241,7 +241,7 @@ export function ThreadList(props: {
                   size="icon-xs"
                   onClick={() => props.onSearch("")}
                   className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground"
-                  aria-label="Clear search"
+                  aria-label="清空搜索"
                 >
                   <XIcon className="h-3.5 w-3.5" />
                 </Button>
@@ -260,14 +260,14 @@ export function ThreadList(props: {
                     onCheckedChange={(value) =>
                       setChecked(value === true ? new Set(visibleThreads.map((t) => t.id)) : new Set())
                     }
-                    aria-label={allChecked ? "Deselect all conversations" : "Select all conversations"}
+                    aria-label={allChecked ? "取消全选会话" : "全选会话"}
                   />
                 </span>
               )}
               {selectionMode ? (
                 <>
                   <span className="text-[13px] font-medium tabular-nums text-foreground">
-                    {checkedCount} selected
+                    已选 {checkedCount} 项
                   </span>
                   <span className="ml-auto flex items-center gap-0.5">
                     <Button
@@ -278,7 +278,7 @@ export function ThreadList(props: {
                         ids: [...checked], action: checkedAllRead ? "unread" : "read",
                       })}
                     >
-                      {checkedAllRead ? "Mark unread" : "Mark read"}
+                      {checkedAllRead ? "标为未读" : "标为已读"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -294,12 +294,12 @@ export function ThreadList(props: {
                       {checkedAllArchived ? (
                         <>
                           <InboxIcon className="h-3.5 w-3.5" />
-                          Move to inbox
+                          移至收件箱
                         </>
                       ) : (
                         <>
                           <ArchiveIcon className="h-3.5 w-3.5" />
-                          Archive
+                          归档
                         </>
                       )}
                     </Button>
@@ -307,7 +307,7 @@ export function ThreadList(props: {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => setChecked(new Set())}
-                      aria-label="Clear selection"
+                      aria-label="取消选择"
                       className="text-muted-foreground"
                     >
                       <XIcon className="h-3.5 w-3.5" />
@@ -321,9 +321,9 @@ export function ThreadList(props: {
                     onValueChange={(value) => props.onFilter(value as ThreadFilter)}
                     className="gap-0"
                   >
-                    <TabsList aria-label="Conversation filter" className="h-7!">
-                      <FilterTab value="all" label="All" />
-                      <FilterTab value="unread" label="Unread" count={props.unreadCount ?? undefined} />
+                    <TabsList aria-label="会话筛选" className="h-7!">
+                      <FilterTab value="all" label="全部" />
+                      <FilterTab value="unread" label="未读" count={props.unreadCount ?? undefined} />
                     </TabsList>
                   </Tabs>
 
@@ -336,7 +336,7 @@ export function ThreadList(props: {
                     >
                       <SelectTrigger
                         size="sm"
-                        aria-label="Filter by label"
+                        aria-label="按标签筛选"
                         className={`ml-auto min-w-0 max-w-[45%] gap-1.5 text-xs ${
                           props.activeLabel !== null
                             ? "border-foreground/25 bg-accent text-foreground"
@@ -345,11 +345,11 @@ export function ThreadList(props: {
                       >
                         <TagIcon className="h-3.5 w-3.5" />
                         <span className="min-w-0 truncate">
-                          {props.activeLabel === null ? "Label" : <SelectValue placeholder="Label" />}
+                          {props.activeLabel === null ? "标签" : <SelectValue placeholder="标签" />}
                         </span>
                       </SelectTrigger>
                       <SelectContent align="end" position="popper">
-                        <SelectItem value="all">All labels</SelectItem>
+                        <SelectItem value="all">所有标签</SelectItem>
                         {availableLabels.map((label) => (
                           <SelectItem key={label.id} value={String(label.id)}>
                             {props.selectedMailbox === null
@@ -367,7 +367,7 @@ export function ThreadList(props: {
         )}
         {bulkUpdate.isError && (
           <p role="alert" className="mt-2 text-xs text-destructive">
-            Couldn’t update the selected conversations. Please try again.
+            无法更新所选会话，请重试。
           </p>
         )}
       </header>
@@ -375,8 +375,8 @@ export function ThreadList(props: {
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {props.emptyInbox && (
           <ListState
-            title="No conversations yet"
-            detail="Email sent to your inboxes will show up here."
+            title="暂无会话"
+            detail="收到的邮件会显示在这里。"
           />
         )}
 
@@ -384,8 +384,8 @@ export function ThreadList(props: {
 
         {props.error && !props.loading && (
           <ListState
-            title="Couldn’t load conversations"
-            detail="Check your connection and try again."
+            title="无法加载会话"
+            detail="请检查网络连接后重试。"
           />
         )}
 
@@ -393,23 +393,23 @@ export function ThreadList(props: {
           <ListState
             title={
               props.search || props.activeLabel !== null
-                ? "No matching conversations"
+                ? "没有匹配的会话"
                 : props.filter === "unread"
-                  ? "No unread conversations"
+                  ? "没有未读会话"
                   : props.archive
-                    ? "Archive is empty"
-                    : "Inbox zero"
+                    ? "暂无已归档的会话"
+                    : "收件箱已清空"
             }
             detail={
               props.activeLabel !== null
-                ? "Try another label or choose All labels."
+                ? "请尝试其他标签，或选择“所有标签”。"
                 : props.search
-                  ? "Try a name, subject, or message text."
+                  ? "可尝试搜索姓名、主题或邮件正文。"
                   : props.filter === "unread"
                     ? undefined
                     : props.archive
-                      ? "Conversations you archive will appear here."
-                      : "Nothing needs your attention right now."
+                      ? "归档后的会话会显示在这里。"
+                      : "目前没有需要处理的邮件。"
             }
           />
         )}
@@ -437,7 +437,7 @@ export function ThreadList(props: {
               onClick={props.onLoadMore}
               disabled={props.loadingMore}
             >
-              {props.loadingMore ? "Loading…" : "Load older conversations"}
+              {props.loadingMore ? "正在加载…" : "加载更早的会话"}
             </Button>
           </div>
         )}
@@ -498,7 +498,7 @@ function ThreadRow(props: {
         aria-current={props.selected ? "true" : undefined}
         className="flex w-full min-w-0 gap-3 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
       >
-        <span className="sr-only">{unread ? "Unread conversation. " : ""}</span>
+        <span className="sr-only">{unread ? "未读会话。" : ""}</span>
         <EmailAvatar
           email={thread.last_from_address}
           label={sender}
@@ -529,7 +529,7 @@ function ThreadRow(props: {
               unread ? "font-medium text-foreground" : "text-foreground/75"
             }`}
           >
-            {thread.subject || "(no subject)"}
+            {thread.subject || "（无主题）"}
           </span>
           <span className="mt-0.5 block truncate text-[12.5px] leading-5 text-muted-foreground">
             {thread.snippet}
@@ -543,7 +543,7 @@ function ThreadRow(props: {
                   className="h-5 shrink-0 gap-1 rounded-md px-1.5 text-[11px] font-normal text-muted-foreground"
                 >
                   <ArchiveIcon className="h-3 w-3" />
-                  Archived
+                  已归档
                 </Badge>
               )}
               {thread.labels.map((label) => (
@@ -564,7 +564,7 @@ function ThreadRow(props: {
               {hasDraft && (
                 <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
                   <SparklesIcon className="h-3 w-3" />
-                  Draft
+                  草稿
                 </span>
               )}
             </span>
@@ -581,7 +581,7 @@ function ThreadRow(props: {
           id={checkboxId}
           checked={props.checked}
           onCheckedChange={(value) => props.onCheckedChange(value === true)}
-          aria-label={`Select conversation with ${sender}`}
+          aria-label={`选择与 ${sender} 的会话`}
         />
       </label>
     </div>
@@ -604,7 +604,7 @@ function ListState(props: { title: string; detail?: string }) {
 
 function ThreadListSkeleton() {
   return (
-    <div aria-label="Loading conversations" aria-busy="true">
+    <div aria-label="正在加载会话" aria-busy="true">
       {[0, 1, 2, 3, 4].map((item) => (
         <div key={item} className="flex animate-pulse gap-3 border-b border-border/70 px-4 py-3.5">
           <span className="h-8 w-8 shrink-0 rounded-full bg-muted" />

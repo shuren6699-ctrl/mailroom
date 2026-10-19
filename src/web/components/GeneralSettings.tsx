@@ -11,6 +11,7 @@ import {
   updateAiModel,
 } from "../api";
 import { DashLink } from "./DashLink";
+import { localizeErrorMessage } from "../ui-messages";
 import {
   BrowserPushError,
   createBrowserPushSubscription,
@@ -52,7 +53,7 @@ export function GeneralSettings(props: {
   const enable = useMutation({
     mutationFn: async () => {
       const publicKey = settings.data?.vapid_public_key;
-      if (!publicKey) throw new Error("Browser notifications are not configured.");
+      if (!publicKey) throw new Error("尚未配置浏览器通知。");
       const subscription = await createBrowserPushSubscription(publicKey);
       await enableBrowserNotifications(subscription);
     },
@@ -91,7 +92,7 @@ export function GeneralSettings(props: {
       />
 
       <SettingsPage>
-        <SettingsBlock id="notification-settings-heading" title="Notifications">
+        <SettingsBlock id="notification-settings-heading" title="通知">
           <SettingsPanel>
             <div className="flex items-start gap-4 px-4 py-4 sm:px-5">
               <div className="min-w-0 flex-1">
@@ -100,7 +101,7 @@ export function GeneralSettings(props: {
                   className="flex items-center gap-2 text-[13.5px] font-medium text-foreground"
                 >
                   <BellIcon className="h-4 w-4 text-muted-foreground" />
-                  New email notifications
+                  新邮件通知
                 </label>
                 <p className="mt-1 max-w-xl text-[13px] leading-5 text-muted-foreground">
                   {notificationDescription({
@@ -120,7 +121,7 @@ export function GeneralSettings(props: {
                     onClick={() => enable.mutate()}
                     disabled={busy || !configured}
                   >
-                    {enable.isPending ? "Enabling…" : "Enable on this browser"}
+                    {enable.isPending ? "正在启用…" : "在此浏览器启用"}
                   </Button>
                 )}
 
@@ -141,7 +142,7 @@ export function GeneralSettings(props: {
                 className="mt-0.5"
               />
               <span id="browser-notifications-description" className="sr-only">
-                Applies to new email received by every inbox in this workspace.
+                适用于此工作区所有收件箱收到的新邮件。
               </span>
             </div>
           </SettingsPanel>
@@ -181,7 +182,7 @@ function AiModelSettings(props: { saved: string | null | undefined }) {
           }}
         >
           <label htmlFor="ai-model" className="text-[13.5px] font-medium text-foreground">
-            Language model
+            语言模型
           </label>
           <div className="mt-2 flex max-w-xl gap-2">
             <Input
@@ -201,21 +202,21 @@ function AiModelSettings(props: { saved: string | null | undefined }) {
               className="font-mono text-[13px] md:text-[13px]"
             />
             <Button type="submit" variant="outline" disabled={!dirty || save.isPending}>
-              {save.isPending ? "Saving…" : "Save"}
+              {save.isPending ? "正在保存…" : "保存"}
             </Button>
           </div>
           <div id="ai-model-help" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] leading-5 text-muted-foreground">
-            <span className="whitespace-nowrap">Leave empty for default.</span>
-            <DashLink href={AI_MODEL_CATALOG_URL}>Model catalog</DashLink>
+            <span className="whitespace-nowrap">留空则使用默认模型。</span>
+            <DashLink href={AI_MODEL_CATALOG_URL}>模型目录</DashLink>
           </div>
           {save.isError && (
             <p role="alert" className="mt-2 text-xs leading-5 text-destructive">
-              {save.error instanceof Error ? save.error.message : "Couldn’t save the model. Try again."}
+              {save.error instanceof Error ? localizeErrorMessage(save.error.message) : "无法保存模型，请重试。"}
             </p>
           )}
           {save.isSuccess && !dirty && (
             <p role="status" className="mt-2 text-xs leading-5 text-muted-foreground">
-              Saved.
+              已保存。
             </p>
           )}
         </form>
@@ -231,19 +232,19 @@ function notificationDescription(state: {
   globalEnabled: boolean;
   subscribed: boolean;
 }): string {
-  if (!state.configured) return "Push delivery has not been configured on this server.";
-  if (!state.supported) return "This browser does not support push notifications.";
-  if (state.blocked) return "Notifications are blocked in this browser's site settings.";
+  if (!state.configured) return "此服务器尚未配置通知推送。";
+  if (!state.supported) return "此浏览器不支持推送通知。";
+  if (state.blocked) return "此浏览器的网站设置已阻止通知。";
   if (state.globalEnabled && state.subscribed) {
-    return "This browser will notify you when any inbox receives a new email.";
+    return "任一收件箱收到新邮件时，此浏览器都会通知你。";
   }
-  if (state.globalEnabled) return "Notifications are on, but this browser is not subscribed yet.";
-  return "Get notified when any inbox receives a new email.";
+  if (state.globalEnabled) return "通知已开启，但此浏览器尚未订阅。";
+  return "任一收件箱收到新邮件时通知你。";
 }
 
 function notificationErrorMessage(error: Error): string {
   if (error instanceof BrowserPushError && error.code === "permission-denied") {
-    return "Notifications were not allowed. Change this site's notification permission in your browser to try again.";
+    return "通知未获授权。请在浏览器中修改此网站的通知权限后重试。";
   }
-  return error.message || "Couldn’t update browser notifications. Try again.";
+  return error.message ? localizeErrorMessage(error.message) : "无法更新浏览器通知，请重试。";
 }

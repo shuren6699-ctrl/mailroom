@@ -17,38 +17,37 @@ export function AccessSetup(props: { error: ApiError; onRetry: () => void; retry
   return (
     <div className="flex h-dvh min-h-[560px] justify-center overflow-y-auto bg-canvas px-4 py-10 text-foreground md:py-16">
       <div className="w-full max-w-[620px]">
-        <h1 className="text-[20px] font-semibold tracking-tight">Finish securing Mailroom</h1>
+        <h1 className="text-[20px] font-semibold tracking-tight">完成 Mailroom 访问保护设置</h1>
         <p className="mt-2 max-w-xl text-[13.5px] leading-6 text-muted-foreground">
-          Mail stays locked until Cloudflare Access protects this Worker.
+          请先通过 Cloudflare Access 保护此 Worker，然后才能访问邮件。
         </p>
 
         <ol className="mt-8 space-y-3">
-          <Step n={1} title="Enable Access" state={accessActive ? "done" : "current"}>
+          <Step n={1} title="启用 Access" state={accessActive ? "done" : "current"}>
             <p>
-              In the{" "}
+              在{" "}
               <DashLink href={workerDashboardUrl("access")}>
-                {workerName ? `${workerName} Worker's Access tab` : "Worker's Access tab"}
+                {workerName ? `${workerName} Worker 的 Access 页面` : "Worker 的 Access 页面"}
               </DashLink>
-              , select <strong>Enable access</strong> with the <strong>Cloudflare account</strong>{" "}
-              policy. Then reload this page.
+              ，选择<strong>启用访问</strong>，使用 <strong>Cloudflare 账户</strong>策略，然后刷新此页面。
             </p>
           </Step>
 
-          <Step n={2} title="Add two variables" state={accessActive ? "current" : "todo"}>
+          <Step n={2} title="添加两个变量" state={accessActive ? "current" : "todo"}>
             <p>
-              {mismatch ? "These values don't match your Access app. Update them" : "Add these"} in{" "}
-              <DashLink href={workerDashboardUrl("settings")}>Settings</DashLink> → Variables and
-              Secrets:
+              {mismatch ? "以下值与 Access 应用不匹配。请前往" : "请前往"}{" "}
+              <DashLink href={workerDashboardUrl("settings")}>设置</DashLink> → 变量和密钥，
+              {mismatch ? "更新以下变量：" : "添加以下变量："}
             </p>
             <div className="mt-3 space-y-2">
               <CopyField
                 label="WEB_ACCESS_TEAM_DOMAIN"
-                value={hint?.team_domain ?? "Shown after step 1"}
+                value={hint?.team_domain ?? "完成第 1 步后显示"}
                 placeholder={!hint}
               />
               <CopyField
                 label="WEB_ACCESS_AUD"
-                value={hint?.aud ?? "Shown after step 1"}
+                value={hint?.aud ?? "完成第 1 步后显示"}
                 placeholder={!hint}
               />
             </div>
@@ -56,7 +55,7 @@ export function AccessSetup(props: { error: ApiError; onRetry: () => void; retry
         </ol>
 
         <Button className="mt-6" onClick={props.onRetry} disabled={props.retrying}>
-          {props.retrying ? "Checking…" : "Check again"}
+          {props.retrying ? "正在检查…" : "重新检查"}
         </Button>
       </div>
     </div>

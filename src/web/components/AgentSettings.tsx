@@ -52,6 +52,7 @@ import {
   SettingsPage,
   SettingsPanel,
 } from "./SettingsNavigation";
+import { localizeErrorMessage } from "../ui-messages";
 
 interface PlaybookEditorState {
   id?: number;
@@ -306,7 +307,7 @@ export function AgentSettings(props: {
   const prepareInbox = () => {
     const parsed = parseInboxAddress(mailboxAddress);
     if (!parsed) {
-      setMailboxValidationError("Enter a valid email address");
+      setMailboxValidationError("请输入有效的邮箱地址");
       return;
     }
     setMailboxValidationError(null);
@@ -347,7 +348,7 @@ export function AgentSettings(props: {
           </div>
           <Button variant="outline" className="h-9 self-start sm:self-auto" onClick={openMailboxEditor}>
             <PlusIcon className="h-4 w-4" />
-            Add inbox
+            添加收件箱
           </Button>
         </div>
 
@@ -356,20 +357,20 @@ export function AgentSettings(props: {
             {!mailbox.has_received && (
               <SettingsBlock
                 id="email-routing-heading"
-                title="Email routing"
-                description="No mail has arrived yet. Make sure Email Routing sends this address to Mailroom, then send a test email."
+                title="邮件路由"
+                description="尚未收到邮件。请确认 Email Routing 已将此地址的邮件发送到 Mailroom，然后发送一封测试邮件。"
               >
                 <Button
                   variant="link"
                   className="h-auto p-0 underline decoration-muted-foreground/50 hover:decoration-current"
                   onClick={() => setRoutingAddress(mailbox.address)}
                 >
-                  View setup steps
+                  查看设置步骤
                 </Button>
               </SettingsBlock>
             )}
 
-            <SettingsBlock id="agent-drafting-heading" title="AI drafting">
+            <SettingsBlock id="agent-drafting-heading" title="AI 草稿">
               <SettingsPanel>
                 <div className="flex items-start gap-4 px-4 py-4 sm:px-5">
                   <div className="min-w-0 flex-1">
@@ -377,14 +378,14 @@ export function AgentSettings(props: {
                       htmlFor="agent-drafting"
                       className="text-[13.5px] font-medium text-foreground"
                     >
-                      Draft replies to new messages
+                      为新邮件生成回复草稿
                     </label>
                     <p className="mt-1 max-w-xl text-[13px] leading-5 text-muted-foreground">
-                      Create a draft for new customer messages. Nothing is sent without your approval.
+                      为客户的新邮件生成回复草稿。所有草稿均需你确认后才会发送。
                     </p>
                     {toggleDrafting.isError && (
                       <p className="mt-2 text-xs text-destructive" role="alert">
-                        Couldn’t update AI drafting. Try again.
+                        无法更新 AI 草稿设置，请重试。
                       </p>
                     )}
                   </div>
@@ -401,7 +402,7 @@ export function AgentSettings(props: {
                     className="mt-0.5"
                   />
                   <span id="agent-drafting-description" className="sr-only">
-                    When enabled, the AI creates drafts that require your review before sending.
+                    启用后，AI 会生成回复草稿，需经你审核后才能发送。
                   </span>
                 </div>
               </SettingsPanel>
@@ -409,8 +410,8 @@ export function AgentSettings(props: {
 
             <SettingsBlock
               id="base-instructions-heading"
-              title="Base Instructions"
-              description="Product context and guidance applied to every agent draft for this inbox."
+              title="基础指令"
+              description="适用于此收件箱所有 AI 草稿的产品背景和回复要求。"
             >
               <SettingsPanel className="transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
                 <Textarea
@@ -418,17 +419,17 @@ export function AgentSettings(props: {
                   onChange={(event) => setBaseInstructions(event.target.value)}
                   rows={4}
                   aria-labelledby="base-instructions-heading"
-                  placeholder="Describe the product, the agent's role, voice, general rules, and signature…"
+                  placeholder="描述产品、AI 助手的角色、语气、通用规则和签名…"
                   className="max-h-[60dvh] min-h-32 resize-y rounded-none border-0 bg-transparent px-4 py-3.5 text-sm leading-6 shadow-none focus-visible:ring-0 sm:px-5 md:text-sm"
                 />
                 <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-4 py-2.5 sm:px-5">
                   <p className="min-w-0 text-xs text-muted-foreground" aria-live="polite">
                     {saveInstructions.isError ? (
-                      <span className="text-destructive">Couldn’t save these instructions. Try again.</span>
+                      <span className="text-destructive">无法保存指令，请重试。</span>
                     ) : instructionsDirty ? (
-                      "Unsaved changes"
+                      "有未保存的更改"
                     ) : saveInstructions.isSuccess ? (
-                      "All changes saved"
+                      "所有更改已保存"
                     ) : null}
                   </p>
                   <Button
@@ -436,7 +437,7 @@ export function AgentSettings(props: {
                     onClick={() => saveInstructions.mutate()}
                     disabled={saveInstructions.isPending || !instructionsDirty}
                   >
-                    {saveInstructions.isPending ? "Saving…" : "Save instructions"}
+                    {saveInstructions.isPending ? "正在保存…" : "保存指令"}
                   </Button>
                 </div>
               </SettingsPanel>
@@ -444,20 +445,20 @@ export function AgentSettings(props: {
 
             <SettingsBlock
               id="labels-heading"
-              title="Labels"
-              description="New conversations are automatically tagged with every label whose condition matches. Replies are not labeled."
+              title="标签"
+              description="新会话会自动添加所有匹配条件的标签。现有会话中的回复不会添加标签。"
               action={
                 <Button variant="outline" size="sm" onClick={() => openLabelEditor()}>
                   <PlusIcon className="h-3.5 w-3.5" />
-                  New label
+                  新建标签
                 </Button>
               }
             >
               <SettingsPanel>
                 {labels.isLoading && <ListSkeleton />}
-                {labels.isError && <ListMessage tone="error">Couldn’t load labels.</ListMessage>}
+                {labels.isError && <ListMessage tone="error">无法加载标签。</ListMessage>}
                 {labels.data?.length === 0 && (
-                  <ListMessage icon={<TagIcon className="h-4 w-4" />}>No labels yet</ListMessage>
+                  <ListMessage icon={<TagIcon className="h-4 w-4" />}>暂无标签</ListMessage>
                 )}
                 {labels.data && labels.data.length > 0 && (
                   <ul className="divide-y">
@@ -480,24 +481,24 @@ export function AgentSettings(props: {
 
             <SettingsBlock
               id="playbooks-heading"
-              title="Playbooks"
+              title="回复指南"
               description={
                 playbooks.data?.length
-                  ? `${activePlaybookCount} of ${playbooks.data.length} active. A matching playbook is combined with Base Instructions.`
-                  : "Guidance for specific support scenarios, combined with Base Instructions when a conversation matches."
+                  ? `已启用 ${activePlaybookCount} 项，共 ${playbooks.data.length} 项。匹配的回复指南会与基础指令结合使用。`
+                  : "针对特定客服场景的回复要求，会在会话匹配时与基础指令结合使用。"
               }
               action={
                 <Button variant="outline" size="sm" onClick={() => openEditor()}>
                   <PlusIcon className="h-3.5 w-3.5" />
-                  New playbook
+                  新建回复指南
                 </Button>
               }
             >
               <SettingsPanel>
                 {playbooks.isLoading && <ListSkeleton />}
-                {playbooks.isError && <ListMessage tone="error">Couldn’t load playbooks.</ListMessage>}
+                {playbooks.isError && <ListMessage tone="error">无法加载回复指南。</ListMessage>}
                 {playbooks.data?.length === 0 && (
-                  <ListMessage icon={<SparklesIcon className="h-4 w-4" />}>No playbooks yet</ListMessage>
+                  <ListMessage icon={<SparklesIcon className="h-4 w-4" />}>暂无回复指南</ListMessage>
                 )}
                 {playbooks.data && playbooks.data.length > 0 && (
                   <ul className="divide-y">
@@ -520,13 +521,13 @@ export function AgentSettings(props: {
               </SettingsPanel>
             </SettingsBlock>
 
-            <SettingsBlock id="danger-zone-heading" title="Danger zone">
+            <SettingsBlock id="danger-zone-heading" title="危险操作">
               <SettingsPanel className="border-destructive/25">
                 <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <div className="min-w-0">
-                    <p className="text-[13.5px] font-medium text-foreground">Delete inbox</p>
+                    <p className="text-[13.5px] font-medium text-foreground">删除收件箱</p>
                     <p className="mt-1 break-words text-[13px] leading-5 text-muted-foreground">
-                      Permanently deletes {mailbox.address} and all of its conversations.
+                      永久删除 {mailbox.address} 及其所有会话。
                     </p>
                   </div>
                   <Button
@@ -539,7 +540,7 @@ export function AgentSettings(props: {
                     }}
                   >
                     <TrashIcon className="h-3.5 w-3.5" />
-                    Delete inbox
+                    删除收件箱
                   </Button>
                 </div>
               </SettingsPanel>
@@ -551,13 +552,13 @@ export function AgentSettings(props: {
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <SparklesIcon className="h-[18px] w-[18px]" />
               </span>
-              <p className="mt-3 text-[13px] font-medium text-foreground">No inbox to configure</p>
+              <p className="mt-3 text-[13px] font-medium text-foreground">暂无可配置的收件箱</p>
               <p className="mt-1 text-[12.5px] text-muted-foreground">
-                Add an inbox before configuring the agent.
+                请先添加收件箱，再配置 AI 助手。
               </p>
               <Button className="mt-4" onClick={openMailboxEditor}>
                 <PlusIcon className="h-4 w-4" />
-                Add inbox
+                添加收件箱
               </Button>
             </div>
           </SettingsPanel>
@@ -581,7 +582,7 @@ export function AgentSettings(props: {
           saving={saveLabel.isPending}
           error={saveLabel.isError}
           errorMessage={
-            saveLabel.error instanceof Error ? saveLabel.error.message : null
+            saveLabel.error instanceof Error ? localizeErrorMessage(saveLabel.error.message) : null
           }
           onChange={setLabelEditor}
           onClose={() => setLabelEditor(null)}
@@ -618,12 +619,12 @@ export function AgentSettings(props: {
             }}
           >
             <DialogHeader>
-              <DialogTitle>{inboxSetup ? "Set up inbox" : "Add inbox"}</DialogTitle>
+              <DialogTitle>{inboxSetup ? "设置收件箱" : "添加收件箱"}</DialogTitle>
             </DialogHeader>
 
             {!inboxSetup ? (
               <div className="py-5">
-                <Field label="Email address">
+                <Field label="邮箱地址">
                   <Input
                     type="email"
                     value={mailboxAddress}
@@ -642,9 +643,9 @@ export function AgentSettings(props: {
 
                 {domains.isError && (
                   <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-                    <p className="text-sm text-destructive">Couldn’t check email setup.</p>
+                    <p className="text-sm text-destructive">无法检查邮箱配置。</p>
                     <Button type="button" variant="outline" size="sm" onClick={() => domains.refetch()}>
-                      Retry
+                      重试
                     </Button>
                   </div>
                 )}
@@ -653,8 +654,8 @@ export function AgentSettings(props: {
                   <p className="mt-3 text-sm text-destructive" role="alert">
                     {mailboxValidationError ??
                       (addMailbox.error instanceof Error
-                        ? addMailbox.error.message
-                        : "Couldn’t add this inbox")}
+                        ? localizeErrorMessage(addMailbox.error.message)
+                        : "无法添加此收件箱")}
                   </p>
                 )}
               </div>
@@ -674,47 +675,47 @@ export function AgentSettings(props: {
                       setSendingConfirmed(false);
                     }}
                   >
-                    Edit
+                    编辑
                   </Button>
                 </div>
 
                 <p className="pt-4 text-sm leading-5 text-muted-foreground">
-                  Finish these two steps in Cloudflare so this inbox can receive and send mail.
+                  请在 Cloudflare 中完成以下两步，让此收件箱能够收发邮件。
                 </p>
 
                 <ol className="divide-y">
                   <li className="flex items-start gap-3 py-4">
                     <SetupStepNumber number={1} done={routingConfirmed} />
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-medium">Route incoming mail to Mailroom</h3>
+                      <h3 className="text-sm font-medium">将收到的邮件路由到 Mailroom</h3>
                       <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm leading-5 text-muted-foreground marker:text-muted-foreground/70">
                         <li>
-                          Open Email Routing for{" "}
+                          打开{" "}
                           <span className="break-words font-medium text-foreground">{inboxSetup.domainName}</span>{" "}
-                          and go to Routing rules.
+                          的 Email Routing，进入路由规则。
                         </li>
                         <li>
-                          Enable <span className="font-medium text-foreground">Catch-all</span>. Mailroom
-                          still rejects addresses you haven’t added.
+                          启用<span className="font-medium text-foreground">全收（Catch-all）</span>。
+                          Mailroom 仍会拒收尚未添加的地址。
                         </li>
                         <li>
-                          Choose <span className="font-medium text-foreground">Send to a Worker</span>,
-                          select the Worker running this Mailroom, and save.
+                          选择<span className="font-medium text-foreground">发送到 Worker</span>，
+                          选择运行此 Mailroom 的 Worker，然后保存。
                         </li>
                       </ol>
                       <details className="mt-2 text-sm leading-5">
                         <summary className="cursor-pointer rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
-                          Using a subdomain or only this address?
+                          使用子域名，或仅路由此地址？
                         </summary>
                         <p className="mt-1 text-muted-foreground">
-                          Catch-all only works on root domains. Instead, add{" "}
+                          全收仅适用于根域名。也可以将{" "}
                           <span className="break-words font-medium text-foreground">{inboxSetup.address}</span>{" "}
-                          as a custom address and send it to the same Worker.
+                          添加为自定义地址，并发送到同一个 Worker。
                         </p>
                       </details>
                       <Button asChild type="button" variant="outline" size="sm" className="mt-3">
                         <a href={CLOUDFLARE_EMAIL_ROUTING_URL} target="_blank" rel="noreferrer">
-                          Open Email Routing
+                          打开 Email Routing
                           <ExternalLinkIcon />
                         </a>
                       </Button>
@@ -722,22 +723,22 @@ export function AgentSettings(props: {
                         id="confirm-email-routing"
                         checked={routingConfirmed}
                         onCheckedChange={setRoutingConfirmed}
-                        label="I’ve set up routing"
+                        label="我已完成路由设置"
                       />
                     </div>
                   </li>
                   <li className="flex items-start gap-3 py-4">
                     <SetupStepNumber number={2} done={sendingConfirmed} />
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-medium">Turn on sending for this domain</h3>
+                      <h3 className="text-sm font-medium">启用此域名的发信功能</h3>
                       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                        In Email Sending, onboard{" "}
+                        在 Email Sending 中添加{" "}
                         <span className="break-words font-medium text-foreground">{inboxSetup.domainName}</span>{" "}
-                        and wait until its status is Active. This can take a few minutes.
+                        ，等待状态变为“已启用（Active）”。这可能需要几分钟。
                       </p>
                       <Button asChild type="button" variant="outline" size="sm" className="mt-3">
                         <a href={CLOUDFLARE_EMAIL_SENDING_URL} target="_blank" rel="noreferrer">
-                          Open Email Sending
+                          打开 Email Sending
                           <ExternalLinkIcon />
                         </a>
                       </Button>
@@ -745,7 +746,7 @@ export function AgentSettings(props: {
                         id="confirm-email-sending"
                         checked={sendingConfirmed}
                         onCheckedChange={setSendingConfirmed}
-                        label="Sending is active"
+                        label="发信功能已启用"
                       />
                     </div>
                   </li>
@@ -754,8 +755,8 @@ export function AgentSettings(props: {
                 {configureAndAddMailbox.isError && (
                   <p className="text-sm text-destructive" role="alert">
                     {configureAndAddMailbox.error instanceof Error
-                      ? configureAndAddMailbox.error.message
-                      : "Couldn’t add this inbox"}
+                      ? localizeErrorMessage(configureAndAddMailbox.error.message)
+                      : "无法添加此收件箱"}
                   </p>
                 )}
               </div>
@@ -765,10 +766,10 @@ export function AgentSettings(props: {
               {inboxSetup && (
                 <p className="mr-auto text-xs text-muted-foreground" aria-live="polite">
                   {setupStepsRemaining === 0
-                    ? "Ready to add"
+                    ? "可以添加了"
                     : setupStepsRemaining === 1
-                      ? "1 step left"
-                      : "2 steps left"}
+                      ? "还剩 1 步"
+                      : "还剩 2 步"}
                 </p>
               )}
               <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
@@ -778,7 +779,7 @@ export function AgentSettings(props: {
                   disabled={addMailbox.isPending || configureAndAddMailbox.isPending}
                   onClick={() => setMailboxEditorOpen(false)}
                 >
-                  Cancel
+                  取消
                 </Button>
                 <Button
                   type="submit"
@@ -792,8 +793,8 @@ export function AgentSettings(props: {
                   }
                 >
                   {addMailbox.isPending || configureAndAddMailbox.isPending
-                    ? "Adding…"
-                    : "Add inbox"}
+                    ? "正在添加…"
+                    : "添加收件箱"}
                 </Button>
               </div>
             </DialogFooter>
@@ -809,51 +810,51 @@ export function AgentSettings(props: {
       >
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Set up email routing</DialogTitle>
+            <DialogTitle>设置邮件路由</DialogTitle>
             <DialogDescription>
-              If Catch-all or a rule for this address already sends mail to this Mailroom Worker,
-              there’s nothing more to do.
+              如果全收规则或此地址的规则已经将邮件发送到此 Mailroom Worker，
+              则无需再做其他设置。
             </DialogDescription>
           </DialogHeader>
           <div>
-            <h3 className="text-sm font-medium">Catch-all (recommended for root domains)</h3>
+            <h3 className="text-sm font-medium">全收（Catch-all，建议根域名使用）</h3>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              Configure it once, then add future inboxes in Mailroom without extra routing rules.
+              只需配置一次，以后在 Mailroom 中添加收件箱时无需再添加路由规则。
             </p>
           </div>
           <ol className="list-decimal space-y-2 pl-5 text-sm leading-6">
             <li>
-              Open Email Routing for <span className="break-all font-medium">{routingAddress?.split("@")[1]}</span> and
-              go to Routing rules.
+              打开 <span className="break-all font-medium">{routingAddress?.split("@")[1]}</span> 的
+              Email Routing，进入路由规则。
             </li>
             <li>
-              Enable <span className="font-medium">Catch-all</span>.
+              启用<span className="font-medium">全收（Catch-all）</span>。
             </li>
             <li>
-              Choose <span className="font-medium">Send to a Worker</span> and select the Worker running
-              this Mailroom, then save the rule.
+              选择<span className="font-medium">发送到 Worker</span>，选择运行
+              此 Mailroom 的 Worker，然后保存规则。
             </li>
           </ol>
           <p className="text-sm leading-5 text-muted-foreground">
-            Mailroom rejects addresses you haven’t added. Existing rules for specific addresses
-            take priority over Catch-all.
+            Mailroom 会拒收尚未添加的地址。特定地址的现有规则
+            优先于全收规则。
           </p>
           <details className="text-sm leading-6">
             <summary className="cursor-pointer rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
-              Route only this address, or use a subdomain
+              仅路由此地址，或使用子域名
             </summary>
             <p className="mt-2 text-muted-foreground">
-              Catch-all is only available for root domains. To route this address individually,
-              add <span className="break-words font-medium text-foreground">{routingAddress}</span> as
-              a custom address in Routing rules. Choose Send to a Worker, select the Worker
-              running this Mailroom, and save.
+              全收仅适用于根域名。如需单独路由此地址，
+              请在路由规则中将 <span className="break-words font-medium text-foreground">{routingAddress}</span> 添加为
+              自定义地址。选择“发送到 Worker”，再选择运行
+              此 Mailroom 的 Worker，然后保存。
             </p>
           </details>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRoutingAddress(null)}>Close</Button>
+            <Button variant="outline" onClick={() => setRoutingAddress(null)}>关闭</Button>
             <Button asChild>
               <a href={CLOUDFLARE_EMAIL_ROUTING_URL} target="_blank" rel="noreferrer">
-                Open Email Routing
+                打开 Email Routing
                 <ExternalLinkIcon />
               </a>
             </Button>
@@ -887,14 +888,14 @@ export function AgentSettings(props: {
             }}
           >
             <DialogHeader>
-              <DialogTitle className="break-words">Delete {mailbox?.address}?</DialogTitle>
+              <DialogTitle className="break-words">删除 {mailbox?.address}？</DialogTitle>
               <DialogDescription>
-                This permanently deletes its conversations, drafts, and playbooks. This can’t be undone.
+                此操作将永久删除其中的会话、草稿和回复指南，无法撤销。
               </DialogDescription>
             </DialogHeader>
 
             {mailbox && (
-              <Field label={`Type ${mailbox.address} to confirm`}>
+              <Field label={`请输入 ${mailbox.address} 以确认`}>
                 <Input
                   value={deleteInboxConfirmation}
                   onChange={(event) => {
@@ -912,8 +913,8 @@ export function AgentSettings(props: {
             {removeMailbox.isError && (
               <p className="text-sm text-destructive" role="alert">
                 {removeMailbox.error instanceof Error
-                  ? removeMailbox.error.message
-                  : "Couldn’t delete this inbox"}
+                  ? localizeErrorMessage(removeMailbox.error.message)
+                  : "无法删除此收件箱"}
               </p>
             )}
 
@@ -924,7 +925,7 @@ export function AgentSettings(props: {
                 onClick={() => setDeleteInboxOpen(false)}
                 disabled={removeMailbox.isPending}
               >
-                Cancel
+                取消
               </Button>
               <Button
                 type="submit"
@@ -935,7 +936,7 @@ export function AgentSettings(props: {
                   removeMailbox.isPending
                 }
               >
-                {removeMailbox.isPending ? "Deleting…" : "Delete inbox"}
+                {removeMailbox.isPending ? "正在删除…" : "删除收件箱"}
               </Button>
             </DialogFooter>
           </form>
@@ -989,14 +990,14 @@ function PlaybookRow(props: {
       badge={
         !enabled && (
           <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[11px] font-medium text-muted-foreground">
-            Disabled
+            已停用
           </Badge>
         )
       }
       muted={!enabled}
       description={props.playbook.when_to_use}
       detail={props.playbook.instructions}
-      entity="playbook"
+      entity="回复指南"
       deleting={props.deleting}
       confirmDelete={props.confirmDelete}
       onEdit={props.onEdit}
@@ -1005,7 +1006,7 @@ function PlaybookRow(props: {
       onDelete={props.onDelete}
       leading={
         <Switch
-          aria-label={`${enabled ? "Disable" : "Enable"} ${props.playbook.name}`}
+          aria-label={`${enabled ? "停用" : "启用"} ${props.playbook.name}`}
           onCheckedChange={props.onToggle}
           checked={enabled}
           disabled={props.toggling}
@@ -1044,19 +1045,19 @@ function ListRow(props: {
         </p>
         {props.detail && (
           <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground/90">
-            <span className="font-medium text-foreground/70">How to reply · </span>
+            <span className="font-medium text-foreground/70">回复要求 · </span>
             {props.detail}
           </p>
         )}
       </div>
       {props.confirmDelete ? (
-        <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label={`Confirm delete ${props.title}`}>
-          <span className="mr-1 hidden text-xs text-destructive sm:inline">Delete this {props.entity}?</span>
+        <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label={`确认删除 ${props.title}`}>
+          <span className="mr-1 hidden text-xs text-destructive sm:inline">删除此{props.entity}？</span>
           <Button variant="ghost" size="sm" onClick={props.onCancelDelete}>
-            Cancel
+            取消
           </Button>
           <Button variant="destructive" size="sm" onClick={props.onDelete} disabled={props.deleting}>
-            {props.deleting ? "Deleting…" : "Delete"}
+            {props.deleting ? "正在删除…" : "删除"}
           </Button>
         </div>
       ) : (
@@ -1066,8 +1067,8 @@ function ListRow(props: {
             size="icon-sm"
             onClick={props.onEdit}
             className="text-muted-foreground"
-            aria-label={`Edit ${props.title}`}
-            title="Edit"
+            aria-label={`编辑 ${props.title}`}
+            title="编辑"
           >
             <PencilIcon className="h-3.5 w-3.5" />
           </Button>
@@ -1076,8 +1077,8 @@ function ListRow(props: {
             size="icon-sm"
             onClick={props.onRequestDelete}
             className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            aria-label={`Delete ${props.title}`}
-            title="Delete"
+            aria-label={`删除 ${props.title}`}
+            title="删除"
           >
             <TrashIcon className="h-3.5 w-3.5" />
           </Button>
@@ -1115,8 +1116,8 @@ function MailboxSelect(props: {
       value={props.selectedMailboxId === null ? undefined : String(props.selectedMailboxId)}
       onValueChange={(value) => props.onSelect(Number(value))}
     >
-      <SelectTrigger className="h-9 w-full bg-background text-sm" aria-label="Inbox to configure">
-        <SelectValue placeholder="Choose inbox" />
+      <SelectTrigger className="h-9 w-full bg-background text-sm" aria-label="要配置的收件箱">
+        <SelectValue placeholder="选择收件箱" />
       </SelectTrigger>
       <SelectContent>
         {props.mailboxes.map((item) => (
@@ -1149,48 +1150,48 @@ function PlaybookEditor(props: {
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{props.state.id ? "Edit playbook" : "New playbook"}</DialogTitle>
+          <DialogTitle>{props.state.id ? "编辑回复指南" : "新建回复指南"}</DialogTitle>
         </DialogHeader>
 
         <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-          <Field label="Name">
+          <Field label="名称">
             <Input
               value={props.state.name}
               onChange={(event) => update({ name: event.target.value })}
-              placeholder="Refund requests"
+              placeholder="退款申请"
               autoFocus
             />
           </Field>
 
-          <Field label="When to use">
+          <Field label="使用场景">
             <Textarea
               value={props.state.whenToUse}
               onChange={(event) => update({ whenToUse: event.target.value })}
-              placeholder="Use when a customer asks to cancel a charge, reverse a payment, or receive a refund."
+              placeholder="当客户要求取消扣款、撤销付款或退款时使用。"
               rows={3}
             />
           </Field>
 
-          <Field label="How to reply">
+          <Field label="回复要求">
             <Textarea
               value={props.state.instructions}
               onChange={(event) => update({ instructions: event.target.value })}
-              placeholder="Acknowledge the request. Verify the payment before promising a refund. Do not promise an exact arrival date."
+              placeholder="确认已收到申请。在承诺退款前核实付款信息，不要承诺具体到账日期。"
               rows={5}
             />
           </Field>
 
-          <Field label="Example reply (optional)">
+          <Field label="回复示例（选填）">
             <Textarea
               value={props.state.exampleReply}
               onChange={(event) => update({ exampleReply: event.target.value })}
-              placeholder="Thanks for reaching out…"
+              placeholder="感谢你的来信…"
               rows={5}
             />
           </Field>
 
           <label className="flex cursor-pointer items-center justify-between rounded-lg border bg-muted/40 px-3.5 py-3">
-            <span className="text-[13px] font-medium text-foreground">Enabled</span>
+            <span className="text-[13px] font-medium text-foreground">启用</span>
             <Switch
               checked={props.state.enabled}
               onCheckedChange={(enabled) => update({ enabled })}
@@ -1199,7 +1200,7 @@ function PlaybookEditor(props: {
 
           {props.error && (
             <p role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
-              Couldn’t save this playbook. Check the fields and try again.
+              无法保存此回复指南，请检查填写内容后重试。
             </p>
           )}
         </div>
@@ -1209,13 +1210,13 @@ function PlaybookEditor(props: {
             variant="outline"
             onClick={props.onClose}
           >
-            Cancel
+            取消
           </Button>
           <Button
             onClick={props.onSave}
             disabled={!valid || props.saving}
           >
-            {props.saving ? "Saving…" : props.state.id ? "Save changes" : "Create playbook"}
+            {props.saving ? "正在保存…" : props.state.id ? "保存更改" : "创建回复指南"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1245,7 +1246,7 @@ function LabelRow(props: {
     <ListRow
       title={props.label.name}
       description={props.label.condition}
-      entity="label"
+      entity="标签"
       deleting={props.deleting}
       confirmDelete={props.confirmDelete}
       onEdit={props.onEdit}
@@ -1275,34 +1276,34 @@ function LabelEditor(props: {
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{props.state.id ? "Edit label" : "New label"}</DialogTitle>
+          <DialogTitle>{props.state.id ? "编辑标签" : "新建标签"}</DialogTitle>
         </DialogHeader>
 
         <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-          <Field label="Name">
+          <Field label="名称">
             <Input
               value={props.state.name}
               onChange={(event) => update({ name: event.target.value })}
-              placeholder="guest-post"
+              placeholder="投稿"
               autoFocus
             />
           </Field>
 
-          <Field label="Match condition">
+          <Field label="匹配条件">
             <Textarea
               value={props.state.condition}
               onChange={(event) => update({ condition: event.target.value })}
-              placeholder="Apply when the sender pitches writing a guest article for our blog, or asks us to publish their contributed post."
+              placeholder="当发件人希望为我们的博客撰写文章，或请求我们发布其投稿时添加此标签。"
               rows={4}
             />
             <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">
-              New incoming emails are checked against this description. Replies in existing conversations are not labeled.
+              系统会根据此描述检查新收到的邮件。现有会话中的回复不会添加标签。
             </span>
           </Field>
 
           {props.error && (
             <p role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
-              {props.errorMessage ?? "Couldn’t save this label. Check the fields and try again."}
+              {props.errorMessage ?? "无法保存此标签，请检查填写内容后重试。"}
             </p>
           )}
         </div>
@@ -1312,13 +1313,13 @@ function LabelEditor(props: {
             variant="outline"
             onClick={props.onClose}
           >
-            Cancel
+            取消
           </Button>
           <Button
             onClick={props.onSave}
             disabled={!valid || props.saving}
           >
-            {props.saving ? "Saving…" : props.state.id ? "Save changes" : "Create label"}
+            {props.saving ? "正在保存…" : props.state.id ? "保存更改" : "创建标签"}
           </Button>
         </DialogFooter>
       </DialogContent>
