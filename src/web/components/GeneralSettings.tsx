@@ -28,8 +28,10 @@ import {
 } from "./SettingsNavigation";
 
 export function GeneralSettings(props: {
+  isAdmin: boolean;
   onBack: () => void;
-  onOpenInboxes: () => void;
+  onOpenInboxes?: () => void;
+  onOpenMembers?: () => void;
 }) {
   const queryClient = useQueryClient();
   const settings = useQuery({
@@ -68,7 +70,7 @@ export function GeneralSettings(props: {
     onSettled: refreshState,
   });
 
-  const globalEnabled = Boolean(settings.data?.browser_notifications_enabled);
+  const notificationsEnabled = Boolean(settings.data?.browser_notifications_enabled);
   const configured = Boolean(settings.data?.browser_notifications_configured);
   const supported = browser.data?.supported ?? true;
   const blocked = browser.data?.permission === "denied";
@@ -76,10 +78,11 @@ export function GeneralSettings(props: {
   const busy = enable.isPending || disable.isPending;
   const switchDisabled =
     settings.isLoading ||
+    settings.isError ||
     browser.isLoading ||
     busy ||
     !configured ||
-    (!globalEnabled && (!supported || blocked));
+    (!notificationsEnabled && (!supported || blocked));
   const error = enable.error ?? disable.error;
 
   return (
@@ -89,10 +92,11 @@ export function GeneralSettings(props: {
         onBack={props.onBack}
         onOpenGeneral={() => undefined}
         onOpenInboxes={props.onOpenInboxes}
+        onOpenMembers={props.onOpenMembers}
       />
 
       <SettingsPage>
-        <SettingsBlock id="notification-settings-heading" title="通知">
+        <SettingsBlock id="notification-settings-heading" title="个人通知" description="通知偏好仅适用于你的账号。">
           <SettingsPanel>
             <div className="flex items-start gap-4 px-4 py-4 sm:px-5">
               <div className="min-w-0 flex-1">
@@ -108,12 +112,12 @@ export function GeneralSettings(props: {
                     configured,
                     supported,
                     blocked,
-                    globalEnabled,
+                    notificationsEnabled,
                     subscribed,
                   })}
                 </p>
 
-                {globalEnabled && !subscribed && supported && !blocked && (
+                {notificationsEnabled && !subscribed && supported && !blocked && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -133,7 +137,7 @@ export function GeneralSettings(props: {
               </div>
               <Switch
                 id="browser-notifications"
-                checked={globalEnabled}
+                checked={notificationsEnabled}
                 onCheckedChange={(checked) =>
                   checked ? enable.mutate() : disable.mutate()
                 }
@@ -142,15 +146,17 @@ export function GeneralSettings(props: {
                 className="mt-0.5"
               />
               <span id="browser-notifications-description" className="sr-only">
-                适用于此工作区所有收件箱收到的新邮件。
+                仅通知你有权访问的收件箱收到的新邮件。
               </span>
             </div>
           </SettingsPanel>
         </SettingsBlock>
 
-        <AiModelSettings saved={settings.data?.ai_model} />
+        {settings.isError && <p role="alert" className="text-sm text-destructive">无法加载个人设置。<Button variant="link" onClick={() => settings.refetch()}>重试</Button></p>}
 
-        <McpSettings />
+        {props.isAdmin && <AiModelSettings saved={settings.data?.ai_model} />}
+
+        {props.isAdmin && <McpSettings />}
       </SettingsPage>
     </div>
   );
@@ -229,17 +235,17 @@ function notificationDescription(state: {
   configured: boolean;
   supported: boolean;
   blocked: boolean;
-  globalEnabled: boolean;
+  notificationsEnabled: boolean;
   subscribed: boolean;
 }): string {
   if (!state.configured) return "此服务器尚未配置通知推送。";
   if (!state.supported) return "此浏览器不支持推送通知。";
   if (state.blocked) return "此浏览器的网站设置已阻止通知。";
-  if (state.globalEnabled && state.subscribed) {
-    return "任一收件箱收到新邮件时，此浏览器都会通知你。";
+  if (state.notificationsEnabled && state.subscribed) {
+    return "你有权访问的收件箱收到新邮件时，此浏览器会通知你。";
   }
-  if (state.globalEnabled) return "通知已开启，但此浏览器尚未订阅。";
-  return "任一收件箱收到新邮件时通知你。";
+  if (state.notificationsEnabled) return "你的通知已开启，但此浏览器尚未订阅。";
+  return "你有权访问的收件箱收到新邮件时通知你。";
 }
 
 function notificationErrorMessage(error: Error): string {
