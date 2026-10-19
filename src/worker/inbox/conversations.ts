@@ -1,4 +1,5 @@
 import { decodeCursor, encodeCursor, entityId } from "../../shared/entity-ids.ts";
+import { mailboxScope, requireMailbox, type Principal } from "./permissions.ts";
 
 export interface InboxDataEnv {
   DB: D1Database;
@@ -30,13 +31,14 @@ interface ConversationRow {
   draft_run_status: string | null;
 }
 
-export async function listInboxes(env: InboxDataEnv) {
+export async function listInboxes(env: InboxDataEnv, principal?: Principal) {
   const { results } = await env.DB.prepare(
     `SELECT m.id, m.address, m.agent_mode,
        CASE WHEN d.status = 'active' THEN 1 ELSE 0 END AS can_send,
        (SELECT COUNT(*) FROM threads t
         WHERE t.mailbox_id = m.id AND t.is_read = 0 AND t.status != 'archived') AS unread_count
      FROM mailboxes m LEFT JOIN domains d ON d.id = m.domain_id
+     WHERE ${principal ? mailboxScope(principal, "m.id") : "1=1"}
      ORDER BY m.address`,
   ).all<{
     id: number;
@@ -57,8 +59,9 @@ export async function listInboxes(env: InboxDataEnv) {
   };
 }
 
-export async function searchConversations(env: InboxDataEnv, input: SearchConversationInput) {
+export async function searchConversations(env: InboxDataEnv, input: SearchConversationInput, principal?: Principal) {
   const conditions = ["t.status = ?"];
+  if (principal) conditions.push(mailboxScope(principal, "t.mailbox_id"));
   const values: unknown[] = [input.status ?? "open"];
 
   if (input.inboxId !== undefined) {
@@ -154,7 +157,7 @@ export async function searchConversations(env: InboxDataEnv, input: SearchConver
   };
 }
 
-export async function getConversation(env: InboxDataEnv, id: number, limit: number) {
+export async function getConversation(env: InboxDataEnv, id: number, limit: number, principal?: Principal) {
   const thread = await env.DB.prepare(
     `SELECT t.id, t.mailbox_id, m.address AS mailbox_address, t.subject,
        t.status, t.is_read, t.message_count, t.last_message_at
@@ -173,6 +176,7 @@ export async function getConversation(env: InboxDataEnv, id: number, limit: numb
       last_message_at: string;
     }>();
   if (!thread) return null;
+  if (principal) requireMailbox(principal, thread.mailbox_id);
 
   const [messageResult, draftResult, draftRun] = await Promise.all([
     env.DB.prepare(
