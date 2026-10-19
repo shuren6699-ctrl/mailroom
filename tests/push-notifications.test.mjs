@@ -14,7 +14,7 @@ test("builds a concise notification that opens the exact conversation", () => {
       subject: "  Refund   request  ",
     }),
     {
-      title: "New email from Alice Customer",
+      title: "来自 Alice Customer 的新邮件",
       body: "Refund request",
       tag: "conversation-42",
       data: { url: "/inbox/42" },
@@ -29,8 +29,8 @@ test("falls back safely when sender and subject are empty", () => {
     senderAddress: "",
     subject: "",
   });
-  assert.equal(payload.title, "New email from Unknown sender");
-  assert.equal(payload.body, "(no subject)");
+  assert.equal(payload.title, "来自 未知发件人 的新邮件");
+  assert.equal(payload.body, "（无主题）");
 });
 
 test("accepts only complete HTTPS Push Subscriptions", () => {
