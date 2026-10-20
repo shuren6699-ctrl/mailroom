@@ -250,8 +250,30 @@ test("a hanging CF request is aborted within a bounded timeout and can be retrie
   }));
   const syncing = synchronizeAccessPolicy(f.env);
   await entered;
-  t.mock.timers.tick(10_001);
+  t.mock.timers.tick(15_001);
   assertSafe(await syncing, f);
+});
+
+test("a valid Cloudflare policy response delayed six seconds can complete synchronization", async (t) => {
+  const f = fixture(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let started;
+  const entered = new Promise((resolve) => { started = resolve; });
+  const cf = upstream(t, policy(), (request, current) => {
+    if (request.method === "GET") return new Promise((resolve) => {
+      setTimeout(() => resolve(Response.json({ success: true, result: current })), 6_000);
+      started();
+    });
+  });
+  const syncing = synchronizeAccessPolicy(f.env);
+  await entered;
+  t.mock.timers.tick(6_000);
+  const status = await syncing;
+  assert.equal(status.state, "synced");
+  assert.ok(status.last_synced_at);
+  assert.equal(cf.writes().length, 1);
+  assert.equal(f.state().synced_revision, 1);
+  assert.equal(f.state().lease_token, null);
 });
 
 test("an active database lease serializes independent synchronizers and a stale lease can be reclaimed", async (t) => {
@@ -348,4 +370,77 @@ test("stored error text is never trusted as a user visible message", async (t) =
   const status = await getAccessSyncStatus(f.env);
   assert.equal(status.state, "error");
   assert.ok(!JSON.stringify(status).includes(TOKEN));
+});
+
+test("policy validation reports safe actionable reasons and persists them without weakening guards", async (t) => {
+  const cases = [
+    [{ app_count: undefined }, /应用关联数量缺失或格式无效/, "policy_attachment_metadata"],
+    [{ app_count: 2 }, /并非仅供一个应用使用/, "policy_attachment_count"],
+    [{ name: "other-policy" }, /名称、ID 或允许操作不匹配/, "policy_identity"],
+    [{ future_security_constraint: TOKEN }, /包含当前同步程序不支持的字段/, "policy_fields"],
+    [{ include: [{ everyone: {} }] }, /邮箱包含规则格式不受支持/, "policy_rules"],
+    [{ require: null }, /Require 或 Exclude 规则格式无效/, "policy_constraints"],
+  ];
+  const warnings = [];
+  t.mock.method(console, "warn", (...args) => warnings.push(args));
+  for (const [override, message, reason] of cases) {
+    const f = fixture(t);
+    const cf = upstream(t, policy(override));
+    const status = await synchronizeAccessPolicy(f.env);
+    assertSafe(status, f);
+    assert.match(status.message, message);
+    assert.equal((await getAccessSyncStatus(f.env)).message, status.message);
+    assert.equal(cf.writes().length, 0);
+    const diagnostic = warnings.at(-1)?.[1];
+    assert.equal(diagnostic?.phase, "get");
+    assert.equal(diagnostic?.reason, reason);
+  }
+  assert.ok(!JSON.stringify(warnings).includes(TOKEN));
+  assert.ok(!JSON.stringify(warnings).includes("legacy@example.net"));
+});
+
+test("unsupported-field diagnostics bound and sanitize names without logging payload values or credentials", async (t) => {
+  const f = fixture(t);
+  const warnings = [];
+  t.mock.method(console, "warn", (...args) => warnings.push(args));
+  const extras = { safe_future_field: { nested: TOKEN }, [TOKEN]: "private-value", ["x".repeat(65)]: "private-value" };
+  for (let i = 0; i < 20; i++) extras[`future_${i}`] = TOKEN;
+  const cf = upstream(t, policy(extras));
+  const status = await synchronizeAccessPolicy(f.env);
+  assertSafe(status, f);
+  assert.match(status.message, /包含当前同步程序不支持的字段/);
+  assert.equal(cf.writes().length, 0);
+  const diagnostic = warnings[0]?.[1];
+  assert.equal(diagnostic?.phase, "get");
+  assert.equal(diagnostic?.reason, "policy_fields");
+  assert.equal(diagnostic?.unexpected_field_count, 23);
+  assert.ok(diagnostic.unexpected_fields.includes("safe_future_field"));
+  assert.ok(diagnostic.unexpected_fields.length <= 16);
+  assert.ok(diagnostic.unexpected_fields.every((name) => /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)));
+  assert.ok(!JSON.stringify(warnings).includes(TOKEN));
+  assert.ok(!JSON.stringify(warnings).includes("private-value"));
+});
+
+test("PUT guard and content comparison failures identify their stage and never report synced", async (t) => {
+  const cases = [
+    [{ app_count: undefined }, /应用关联数量缺失或格式无效/, "policy_attachment_metadata"],
+    [{ include: [{ email: { email: "wrong@example.net" } }] }, /返回的邮箱白名单与已保存成员不一致/, "policy_emails_changed"],
+    [{ require: [] }, /返回的安全约束与原策略不一致/, "policy_constraints_changed"],
+  ];
+  const warnings = [];
+  t.mock.method(console, "warn", (...args) => warnings.push(args));
+  for (const [override, message, reason] of cases) {
+    const f = fixture(t);
+    upstream(t, policy(), (request, current) => {
+      if (request.method === "PUT") return Response.json({ success: true, result: { ...current, ...JSON.parse(request.body), ...override } });
+    });
+    const status = await synchronizeAccessPolicy(f.env);
+    assertSafe(status, f);
+    assert.match(status.message, message);
+    assert.equal((await getAccessSyncStatus(f.env)).message, status.message);
+    assert.equal(warnings.at(-1)?.[1]?.phase, "put");
+    assert.equal(warnings.at(-1)?.[1]?.reason, reason);
+  }
+  assert.ok(!JSON.stringify(warnings).includes(TOKEN));
+  assert.ok(!JSON.stringify(warnings).includes("wrong@example.net"));
 });
