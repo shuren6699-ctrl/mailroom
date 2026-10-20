@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { ApiVariables } from "./context.ts";
 import { normalizeMemberEmail } from "../inbox/permissions.ts";
+import { accessSyncRevisionStatement, getAccessSyncStatus, synchronizeAccessPolicy } from "../access-sync.ts";
 
 type MemberRow = { email: string; role: "admin" | "member"; enabled: number; created_at: string };
 const fields = {
@@ -23,11 +24,12 @@ membersApi.use("*", async (c, next) => {
 });
 
 membersApi.get("/", async (c) => {
-  const [members, mailboxes, grants] = await Promise.all([
+  const [members, mailboxes, grants, accessSync] = await Promise.all([
     c.env.DB.prepare("SELECT email, role, enabled, created_at FROM members ORDER BY role, email").all<MemberRow>(),
     c.env.DB.prepare("SELECT id, address FROM mailboxes ORDER BY address").all<{ id: number; address: string }>(),
     c.env.DB.prepare("SELECT member_email, mailbox_id FROM member_mailboxes ORDER BY mailbox_id")
       .all<{ member_email: string; mailbox_id: number }>(),
+    getAccessSyncStatus(c.env),
   ]);
   return c.json({
     members: members.results.map((member) => ({
@@ -36,8 +38,11 @@ membersApi.get("/", async (c) => {
         : grants.results.filter((grant) => grant.member_email === member.email).map((grant) => grant.mailbox_id),
     })),
     mailboxes: mailboxes.results,
+    access_sync: accessSync,
   });
 });
+
+membersApi.post("/sync", async (c) => c.json(await synchronizeAccessPolicy(c.env)));
 
 async function validMailboxes(db: D1Database, ids: number[]): Promise<boolean> {
   if (!ids.length) return true;
@@ -61,13 +66,15 @@ membersApi.post("/", async (c) => {
     await c.env.DB.batch([
       c.env.DB.prepare("INSERT INTO members (email, role, enabled) VALUES (?, 'member', ?)").bind(email, enabled ? 1 : 0),
       ...ids.map((id) => c.env.DB.prepare("INSERT INTO member_mailboxes (member_email, mailbox_id) VALUES (?, ?)").bind(email, id)),
+      accessSyncRevisionStatement(c.env.DB),
     ]);
   } catch (error) {
     if (error instanceof Error && error.message.includes("UNIQUE")) return c.json({ error: "该成员已存在" }, 409);
     throw error;
   }
   const member = await c.env.DB.prepare("SELECT created_at FROM members WHERE email = ?").bind(email).first<{ created_at: string }>();
-  return c.json({ email, role: "member", enabled, mailbox_ids: ids, created_at: member!.created_at }, 201);
+  const accessSync = await synchronizeAccessPolicy(c.env);
+  return c.json({ email, role: "member", enabled, mailbox_ids: ids, created_at: member!.created_at, access_sync: accessSync }, 201);
 });
 
 membersApi.put("/:email", async (c) => {
@@ -85,6 +92,8 @@ membersApi.put("/:email", async (c) => {
       .bind(parsed.data.enabled ? 1 : 0, email),
     c.env.DB.prepare("DELETE FROM member_mailboxes WHERE member_email = ?").bind(email),
     ...ids.map((id) => c.env.DB.prepare("INSERT INTO member_mailboxes (member_email, mailbox_id) VALUES (?, ?)").bind(email, id)),
+    accessSyncRevisionStatement(c.env.DB),
   ]);
-  return c.json({ ...member, enabled: parsed.data.enabled, mailbox_ids: ids });
+  const accessSync = await synchronizeAccessPolicy(c.env);
+  return c.json({ ...member, enabled: parsed.data.enabled, mailbox_ids: ids, access_sync: accessSync });
 });
