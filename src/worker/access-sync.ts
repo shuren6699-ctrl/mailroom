@@ -157,7 +157,8 @@ async function request(config: { url: string; token: string }, method: "GET" | "
   });
   const operation = async () => {
     const response = await fetch(config.url, {
-      method, redirect: "error", signal: controller.signal,
+      // workerd accepts manual/follow only. Reject 3xx below without forwarding credentials.
+      method, redirect: "manual", signal: controller.signal,
       headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
