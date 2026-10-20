@@ -18,9 +18,9 @@ interface SyncState {
 
 const OWNER_EMAIL = "shuren6699@gmail.com";
 const POLICY_NAME = "mailroom-team";
-const REQUEST_TIMEOUT_MS = 5_000;
-// Longer than the complete bounded network work (3 attempts x 2 x 5 seconds).
-const LEASE_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 15_000;
+// Longer than the complete bounded network work (3 attempts x 2 x 15 seconds).
+const LEASE_MS = 120_000;
 const MAX_ATTEMPTS = 3;
 
 const MESSAGES = {
