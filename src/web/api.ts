@@ -14,6 +14,7 @@ import type {
   ThreadDetail,
 } from "../shared/types";
 import { localizeErrorMessage } from "./ui-messages";
+import type { AccessSyncStatus } from "../shared/access-sync";
 
 export interface AccessHint {
   team_domain: string;
@@ -72,20 +73,24 @@ export interface Member extends CurrentUser {
 export interface MembersResponse {
   members: Member[];
   mailboxes: Array<{ id: number; address: string }>;
+  access_sync: AccessSyncStatus;
 }
+
+export type MemberMutationResponse = Member & { access_sync?: AccessSyncStatus };
 
 export const fetchCurrentUser = () => request<CurrentUser>("/me");
 export const fetchMembers = () => request<MembersResponse>("/members");
+export const syncMembersAccess = () => request<AccessSyncStatus>("/members/sync", { method: "POST" });
 
 export const createMember = (input: { email: string; mailbox_ids: number[]; enabled?: boolean }) =>
-  request<Member>("/members", {
+  request<MemberMutationResponse>("/members", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
 
 export const updateMember = (email: string, input: { enabled: boolean; mailbox_ids: number[] }) =>
-  request<Member>(`/members/${encodeURIComponent(email)}`, {
+  request<MemberMutationResponse>(`/members/${encodeURIComponent(email)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
