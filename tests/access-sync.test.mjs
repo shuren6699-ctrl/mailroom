@@ -138,7 +138,7 @@ test("enabled member emails are canonical sorted deduplicated, disabled and lega
   assert.equal((await getAccessSyncStatus(f.env)).state, "synced");
   for (const request of cf.calls) {
     assert.equal(request.url, ENDPOINT);
-    assert.equal(request.redirect, "error");
+    assert.equal(request.redirect, "manual");
     assert.ok(request.signal instanceof AbortSignal);
     assert.equal(new Headers(request.headers).get("Authorization"), `Bearer ${TOKEN}`);
   }
