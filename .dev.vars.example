@@ -6,3 +6,10 @@
 # VAPID_PUBLIC_KEY=
 # VAPID_PRIVATE_JWK=
 # VAPID_SUBJECT=mailto:admin@example.com
+
+# Optional Access whitelist sync. Production token belongs in Worker Secrets.
+# Limit the token to the intended account and Access: Apps and Policies editing.
+# Never use production credentials for local automated tests.
+# CF_ACCESS_API_TOKEN=
+# ACCESS_SYNC_ACCOUNT_ID=
+# ACCESS_SYNC_POLICY_ID=
