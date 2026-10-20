@@ -19,6 +19,9 @@ interface OutboundEmailBinding {
 interface Env {
   WEB_ACCESS_TEAM_DOMAIN?: string;
   WEB_ACCESS_AUD?: string;
+  CF_ACCESS_API_TOKEN?: string;
+  ACCESS_SYNC_ACCOUNT_ID?: string;
+  ACCESS_SYNC_POLICY_ID?: string;
   DB: D1Database;
   RAW: R2Bucket;
   EMAIL: OutboundEmailBinding;
