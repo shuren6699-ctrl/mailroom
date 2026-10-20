@@ -122,6 +122,78 @@ function denied(response) {
   assert.ok([403, 404].includes(response.status), `expected an inaccessible resource, got ${response.status}`);
 }
 
+test("member management reports an unconfigured CF connection without exposing secrets", async (t) => {
+  const f = fixture(t);
+  f.as(ADMIN);
+  const data = await (await f.request("/members")).json();
+  assert.equal(data.access_sync.configured, false);
+  assert.equal(data.access_sync.state, "not_configured");
+  const sync = await f.json("/members/sync", {});
+  assert.equal(sync.status, 200);
+  assert.equal((await sync.json()).state, "not_configured");
+});
+
+function configureAccessSync(f) {
+  Object.assign(f.env, {
+    ACCESS_SYNC_ACCOUNT_ID: "a".repeat(32),
+    ACCESS_SYNC_POLICY_ID: "5c559533-faa7-469f-9ad3-eb040cdfc137",
+    CF_ACCESS_API_TOKEN: "integration-test-token",
+  });
+}
+
+test("saving a member automatically synchronizes the enabled members into the fixed CF policy", async (t) => {
+  const f = fixture(t);
+  f.as(ADMIN);
+  configureAccessSync(f);
+  const calls = [];
+  let currentPolicy = {
+    id: f.env.ACCESS_SYNC_POLICY_ID, name: "mailroom-team", decision: "allow", app_count: 1,
+    include: [{ email: { email: ADMIN } }], exclude: [], require: [],
+  };
+  t.mock.method(globalThis, "fetch", async (url, init = {}) => {
+    calls.push({ url: String(url), ...init });
+    if (init.method === "PUT") currentPolicy = { ...currentPolicy, ...JSON.parse(init.body) };
+    return Response.json({ success: true, result: currentPolicy });
+  });
+  const response = await f.json("/members", { email: "New@example.net", enabled: true, mailbox_ids: [2] });
+  assert.equal(response.status, 201);
+  const data = await response.json();
+  assert.equal(data.access_sync.state, "synced");
+  const writes = calls.filter((call) => call.method === "PUT");
+  assert.equal(writes.length, 1);
+  const policy = JSON.parse(writes[0].body);
+  assert.ok(policy.include.some((rule) => rule.email?.email === "new@example.net"));
+  assert.ok(policy.include.some((rule) => rule.email?.email === ADMIN));
+  assert.ok(!policy.include.some((rule) => rule.email?.email === "disabled@example.net"));
+  assert.equal(writes[0].url, `https://api.cloudflare.com/client/v4/accounts/${f.env.ACCESS_SYNC_ACCOUNT_ID}/access/policies/${f.env.ACCESS_SYNC_POLICY_ID}`);
+  assert.ok(!JSON.stringify(data).includes(f.env.CF_ACCESS_API_TOKEN));
+});
+
+test("a CF synchronization outage never rolls back disabled local membership", async (t) => {
+  const f = fixture(t);
+  f.as(ADMIN);
+  configureAccessSync(f);
+  t.mock.method(globalThis, "fetch", async () => { throw new Error(`Sensitive upstream text ${f.env.CF_ACCESS_API_TOKEN}`); });
+  const response = await f.json(`/members/${encodeURIComponent(MEMBER)}`, { enabled: false, mailbox_ids: [1] }, "PUT");
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.enabled, false);
+  assert.equal(data.access_sync.state, "error");
+  assert.ok(!JSON.stringify(data).includes(f.env.CF_ACCESS_API_TOKEN));
+  f.as(MEMBER);
+  assert.deepEqual(await (await f.request("/mailboxes")).json(), []);
+  denied(await f.request("/threads/11"));
+});
+
+test("ordinary members cannot trigger CF policy writes or inspect sync configuration", async (t) => {
+  const f = fixture(t);
+  configureAccessSync(f);
+  const network = t.mock.method(globalThis, "fetch", async () => { throw new Error("unexpected request"); });
+  denied(await f.json("/members/sync", {}));
+  denied(await f.request("/members"));
+  assert.equal(network.mock.callCount(), 0);
+});
+
 test("migration seeds only the requested administrator with no ordinary mailbox grants", (t) => {
   const f = fixture(t);
   const administrators = f.db.prepare("SELECT email, enabled FROM members WHERE role = 'admin'").all();
