@@ -13,6 +13,12 @@
   // Preserve per-instance WEB_ACCESS_TEAM_DOMAIN and WEB_ACCESS_AUD from
   // Worker Settings > Variables and Secrets. Missing values deny all API access.
   "keep_vars": true,
+  // Non-secret identifiers for this instance's existing email-only team policy.
+  // Configure CF_ACCESS_API_TOKEN separately in Worker Secrets to enable sync.
+  "vars": {
+    "ACCESS_SYNC_ACCOUNT_ID": "2182423f8a48481ffc4ddb3982a748b5",
+    "ACCESS_SYNC_POLICY_ID": "5c559533-faa7-469f-9ad3-eb040cdfc137"
+  },
   "assets": {
     "not_found_handling": "single-page-application",
     // /mcp (including /mcp/oauth/*) and /.well-known/* serve MCP and OAuth;
