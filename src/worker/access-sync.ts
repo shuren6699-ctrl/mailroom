@@ -176,6 +176,19 @@ function stableJson(value: unknown): string {
 }
 
 async function request(config: { url: string; token: string }, method: "GET" | "PUT", body?: JsonObject): Promise<unknown> {
+  const startedAt = Date.now();
+  let waitingFor: "response_headers" | "response_body" | undefined = "response_headers";
+  let status: number | undefined;
+  const diagnostic = (phase: "request_start" | "response_headers" | "response_body" | "request_failed", reason?: Failure) => {
+    // Never include request URLs, credentials, headers, response bodies or exception text.
+    console.info("Cloudflare Access sync request", {
+      method, phase, elapsed_ms: Math.max(0, Date.now() - startedAt),
+      ...(status === undefined ? {} : { status }),
+      ...(phase === "request_failed" && waitingFor ? { waiting_for: waitingFor } : {}),
+      ...(reason ? { reason } : {}),
+    });
+  };
+  diagnostic("request_start");
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -188,16 +201,24 @@ async function request(config: { url: string; token: string }, method: "GET" | "
       headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
+    if (Number.isInteger(response.status) && response.status >= 100 && response.status <= 599) status = response.status;
+    waitingFor = undefined;
+    diagnostic("response_headers");
     if (!response.ok) throw new SyncError("api");
     let payload: unknown;
+    waitingFor = "response_body";
     try { payload = await response.json(); } catch { throw new SyncError("api"); }
+    waitingFor = undefined;
+    diagnostic("response_body");
     if (!object(payload) || payload.success !== true || !object(payload.result)) throw new SyncError("api");
     return payload.result;
   };
   try { return await Promise.race([operation(), timeout]); }
   catch (error) {
-    if (controller.signal.aborted) throw new SyncError("timeout");
-    throw error instanceof SyncError ? error : new SyncError("network");
+    const failure = controller.signal.aborted ? new SyncError("timeout")
+      : error instanceof SyncError ? error : new SyncError("network");
+    diagnostic("request_failed", failure.code);
+    throw failure;
   } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
