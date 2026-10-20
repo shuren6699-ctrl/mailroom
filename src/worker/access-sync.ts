@@ -26,6 +26,15 @@ const MAX_ATTEMPTS = 3;
 const MESSAGES = {
   configuration: "Cloudflare 白名单同步配置无效，请检查服务器配置后重试。",
   policy: "目标策略必须是仅供当前应用使用的 mailroom-team 邮箱允许规则，且安全约束必须完整保留；请检查后重试。",
+  policy_shape: "Cloudflare 返回的目标策略格式无效，已停止同步；请检查后重试。",
+  policy_identity: "目标策略的名称、ID 或允许操作不匹配，已停止同步；请检查后重试。",
+  policy_attachment_metadata: "目标策略的应用关联数量缺失或格式无效，已停止同步；请检查后重试。",
+  policy_attachment_count: "目标策略并非仅供一个应用使用，已停止同步以保护其他应用；请检查后重试。",
+  policy_fields: "目标策略包含当前同步程序不支持的字段，已停止同步以保留安全约束；请检查后重试。",
+  policy_rules: "目标策略的邮箱包含规则格式不受支持，已停止同步；请检查后重试。",
+  policy_constraints: "目标策略的 Require 或 Exclude 规则格式无效，已停止同步；请检查后重试。",
+  policy_emails_changed: "Cloudflare 返回的邮箱白名单与已保存成员不一致，尚未确认同步；请重试。",
+  policy_constraints_changed: "Cloudflare 返回的安全约束与原策略不一致，尚未确认同步；请检查后重试。",
   owner: "管理员账户配置异常，已停止白名单同步以保护管理员访问；请修复后重试。",
   member: "成员邮箱配置无效，已停止白名单同步；请检查后重试。",
   api: "Cloudflare 白名单同步失败，请检查 API Token 权限和目标策略后重试。",
@@ -128,17 +137,34 @@ const SAFETY_FIELDS = [
 const POLICY_FIELDS = new Set<string>(["name", "decision", "include", ...SAFETY_FIELDS]);
 const RESPONSE_FIELDS = new Set(["id", "account_id", "app_count", "created_at", "updated_at", "reusable"]);
 
-function policyEmails(value: unknown, env: AccessSyncEnv): { policy: JsonObject; emails: string[] } {
-  if (!object(value) || value.name !== POLICY_NAME || value.decision !== "allow" || value.app_count !== 1 ||
+type PolicyPhase = "get" | "put";
+function rejectPolicy(reason: Failure, phase: PolicyPhase, details: JsonObject = {}): never {
+  // Only static classifications, bounded field names and counts belong in diagnostics.
+  console.warn("Cloudflare Access policy validation rejected", { phase, reason, ...details });
+  throw new SyncError(reason);
+}
+
+function policyEmails(value: unknown, env: AccessSyncEnv, phase: PolicyPhase): { policy: JsonObject; emails: string[] } {
+  if (!object(value)) rejectPolicy("policy_shape", phase);
+  if (value.name !== POLICY_NAME || value.decision !== "allow" ||
       (value.id !== undefined && value.id !== env.ACCESS_SYNC_POLICY_ID) ||
-      (value.account_id !== undefined && value.account_id !== env.ACCESS_SYNC_ACCOUNT_ID) ||
-      !Array.isArray(value.include) || value.include.length === 0) throw new SyncError("policy");
-  if (Object.keys(value).some((key) => !POLICY_FIELDS.has(key) && !RESPONSE_FIELDS.has(key))) throw new SyncError("policy");
+      (value.account_id !== undefined && value.account_id !== env.ACCESS_SYNC_ACCOUNT_ID)) rejectPolicy("policy_identity", phase);
+  if (typeof value.app_count !== "number" || !Number.isFinite(value.app_count)) rejectPolicy("policy_attachment_metadata", phase);
+  if (value.app_count !== 1) rejectPolicy("policy_attachment_count", phase, { app_count: value.app_count });
+  const unexpectedFields = Object.keys(value).filter((key) => !POLICY_FIELDS.has(key) && !RESPONSE_FIELDS.has(key));
+  if (unexpectedFields.length) rejectPolicy("policy_fields", phase, {
+    unexpected_field_count: unexpectedFields.length,
+    unexpected_fields: unexpectedFields.filter((key) => /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(key) &&
+      !key.includes(env.CF_ACCESS_API_TOKEN ?? "")).slice(0, 16),
+  });
+  if (!Array.isArray(value.include) || value.include.length === 0) rejectPolicy("policy_rules", phase);
   if ((value.require !== undefined && !Array.isArray(value.require)) ||
-      (value.exclude !== undefined && !Array.isArray(value.exclude))) throw new SyncError("policy");
+      (value.exclude !== undefined && !Array.isArray(value.exclude))) rejectPolicy("policy_constraints", phase, {
+    invalid_fields: ["require", "exclude"].filter((key) => value[key] !== undefined && !Array.isArray(value[key])),
+  });
   const emails = value.include.map((rule: unknown) => {
-    if (!object(rule) || Object.keys(rule).length !== 1 || !object(rule.email) || Object.keys(rule.email).length !== 1) throw new SyncError("policy");
-    try { return email(rule.email.email); } catch { throw new SyncError("policy"); }
+    if (!object(rule) || Object.keys(rule).length !== 1 || !object(rule.email) || Object.keys(rule.email).length !== 1) rejectPolicy("policy_rules", phase);
+    try { return email(rule.email.email); } catch { return rejectPolicy("policy_rules", phase); }
   });
   return { policy: value, emails: [...new Set(emails)].sort() };
 }
@@ -199,14 +225,15 @@ export async function synchronizeAccessPolicy(env: AccessSyncEnv): Promise<Acces
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const desired = await snapshot(env.DB, token);
       await renewLease(env.DB, token);
-      const current = policyEmails(await request(config, "GET"), env).policy;
+      const current = policyEmails(await request(config, "GET"), env, "get").policy;
       await renewLease(env.DB, token);
       if ((await readState(env.DB)).revision !== desired.revision) continue;
       const body: JsonObject = { name: POLICY_NAME, decision: "allow", include: desired.emails.map((address) => ({ email: { email: address } })) };
       for (const key of SAFETY_FIELDS) if (Object.hasOwn(current, key)) body[key] = current[key];
-      const updated = policyEmails(await request(config, "PUT", body), env);
-      if (stableJson(updated.emails) !== stableJson(desired.emails) ||
-          SAFETY_FIELDS.some((key) => stableJson(body[key]) !== stableJson(updated.policy[key]))) throw new SyncError("policy");
+      const updated = policyEmails(await request(config, "PUT", body), env, "put");
+      if (stableJson(updated.emails) !== stableJson(desired.emails)) rejectPolicy("policy_emails_changed", "put");
+      const changedSafetyFields = SAFETY_FIELDS.filter((key) => stableJson(body[key]) !== stableJson(updated.policy[key]));
+      if (changedSafetyFields.length) rejectPolicy("policy_constraints_changed", "put", { changed_fields: changedSafetyFields });
       const mark = await env.DB.prepare(`UPDATE access_sync_state SET synced_revision = ?, last_synced_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), last_error = NULL
         WHERE id = 1 AND revision = ? AND lease_token = ? AND lease_until > ?`)
         .bind(desired.revision, desired.revision, token, Date.now()).run();
