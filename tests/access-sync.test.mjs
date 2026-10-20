@@ -444,3 +444,106 @@ test("PUT guard and content comparison failures identify their stage and never r
   assert.ok(!JSON.stringify(warnings).includes(TOKEN));
   assert.ok(!JSON.stringify(warnings).includes("wrong@example.net"));
 });
+
+function requestDiagnostics(t) {
+  const entries = [];
+  t.mock.method(console, "info", (prefix, details) => entries.push({ prefix, ...details }));
+  return entries;
+}
+
+function assertRequestDiagnosticsSafe(entries) {
+  for (const entry of entries) {
+    assert.equal(entry.prefix, "Cloudflare Access sync request");
+    assert.ok(["GET", "PUT"].includes(entry.method));
+    assert.ok(Number.isFinite(entry.elapsed_ms) && entry.elapsed_ms >= 0);
+    assert.ok(Object.keys(entry).every((key) =>
+      ["prefix", "method", "phase", "elapsed_ms", "status", "waiting_for", "reason"].includes(key)));
+  }
+  const serialized = JSON.stringify(entries);
+  for (const privateText of [TOKEN, ENDPOINT, ADMIN, "legacy@example.net", "private-upstream-detail"]) {
+    assert.ok(!serialized.includes(privateText), privateText);
+  }
+}
+
+test("request diagnostics identify a GET timeout before response headers without exposing upstream data", async (t) => {
+  const f = fixture(t);
+  const entries = requestDiagnostics(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let started;
+  const entered = new Promise((resolve) => { started = resolve; });
+  upstream(t, policy(), (request) => new Promise((resolve, reject) => {
+    request.signal.addEventListener("abort", () => reject(new Error(`private-upstream-detail ${TOKEN}`)), { once: true });
+    started();
+  }));
+  const syncing = synchronizeAccessPolicy(f.env);
+  await entered;
+  t.mock.timers.tick(15_001);
+  assertSafe(await syncing, f);
+  assert.deepEqual(entries.map((entry) => entry.phase), ["request_start", "request_failed"]);
+  const failure = entries.at(-1);
+  assert.equal(failure.method, "GET");
+  assert.equal(failure.waiting_for, "response_headers");
+  assert.equal(failure.reason, "timeout");
+  assert.ok(failure.elapsed_ms >= 15_000);
+  assert.equal(failure.status, undefined);
+  assertRequestDiagnosticsSafe(entries);
+});
+
+test("request diagnostics distinguish a PUT response body timeout after successful GET and headers", async (t) => {
+  const f = fixture(t);
+  const entries = requestDiagnostics(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  let started;
+  const readingBody = new Promise((resolve) => { started = resolve; });
+  const cf = upstream(t, policy(), (request) => {
+    if (request.method !== "PUT") return;
+    const response = new Response(`private-upstream-detail ${TOKEN}`, { status: 200 });
+    t.mock.method(response, "json", () => new Promise((resolve, reject) => {
+      request.signal.addEventListener("abort", () => reject(new Error(TOKEN)), { once: true });
+      started();
+    }));
+    return response;
+  });
+  const syncing = synchronizeAccessPolicy(f.env);
+  await readingBody;
+  t.mock.timers.tick(15_001);
+  assertSafe(await syncing, f);
+  assert.equal(cf.writes().length, 1);
+  assert.deepEqual(entries.filter((entry) => entry.method === "GET").map((entry) => entry.phase),
+    ["request_start", "response_headers", "response_body"]);
+  assert.deepEqual(entries.filter((entry) => entry.method === "PUT").map((entry) => entry.phase),
+    ["request_start", "response_headers", "request_failed"]);
+  const failure = entries.at(-1);
+  assert.equal(failure.method, "PUT");
+  assert.equal(failure.waiting_for, "response_body");
+  assert.equal(failure.reason, "timeout");
+  assert.equal(failure.status, 200);
+  assert.ok(failure.elapsed_ms >= 15_000);
+  assertRequestDiagnosticsSafe(entries);
+});
+
+test("request diagnostics retain HTTP rejection status while excluding headers and body text", async (t) => {
+  const f = fixture(t);
+  const entries = requestDiagnostics(t);
+  const cf = upstream(t, policy(), () => new Response(`private-upstream-detail ${TOKEN}`, {
+    status: 403, headers: { "X-Private": TOKEN, "CF-Ray": TOKEN },
+  }));
+  assertSafe(await synchronizeAccessPolicy(f.env), f);
+  assert.equal(cf.writes().length, 0);
+  assert.deepEqual(entries.map((entry) => entry.phase), ["request_start", "response_headers", "request_failed"]);
+  assert.equal(entries.at(-1).status, 403);
+  assert.equal(entries.at(-1).reason, "api");
+  assert.equal(entries.at(-1).waiting_for, undefined);
+  assertRequestDiagnosticsSafe(entries);
+});
+
+test("request diagnostics replace arbitrary network exception text with a fixed classification", async (t) => {
+  const f = fixture(t);
+  const entries = requestDiagnostics(t);
+  upstream(t, policy(), () => { throw new Error(`private-upstream-detail ${TOKEN} ${ENDPOINT}`); });
+  assertSafe(await synchronizeAccessPolicy(f.env), f);
+  assert.deepEqual(entries.map((entry) => entry.phase), ["request_start", "request_failed"]);
+  assert.equal(entries.at(-1).reason, "network");
+  assert.equal(entries.at(-1).waiting_for, "response_headers");
+  assertRequestDiagnosticsSafe(entries);
+});
