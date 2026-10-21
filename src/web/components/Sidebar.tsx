@@ -2,7 +2,7 @@ import type { Mailbox } from "../../shared/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ArchiveIcon, InboxIcon, SettingsIcon } from "./Icons";
-import { SquarePen } from "lucide-react";
+import { LogOut, SquarePen } from "lucide-react";
 
 export function Sidebar(props: {
   mailboxes: Mailbox[];
@@ -11,6 +11,7 @@ export function Sidebar(props: {
   onSelect: (id: number | null) => void;
   onOpenArchive: () => void;
   onOpenSettings: () => void;
+  onLogout: () => void;
   onCompose: () => void;
   composeDisabled?: boolean;
 }) {
@@ -83,6 +84,13 @@ export function Sidebar(props: {
           unread={0}
           active={props.activeView === "settings"}
           onClick={props.onOpenSettings}
+        />
+        <SidebarItem
+          label="退出登录"
+          icon={<LogOut className="h-4 w-4" />}
+          unread={0}
+          active={false}
+          onClick={props.onLogout}
         />
       </div>
     </aside>
