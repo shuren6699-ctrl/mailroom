@@ -3,7 +3,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   "nothing to update": "没有需要保存的更改。",
   "no fields to update": "没有需要保存的更改。",
   "the model must be text": "模型名称必须是文本。",
-  "enter a model id like openai/gpt-6-luna or @cf/meta/llama-3.1-8b-instruct": "请输入模型 ID，例如 openai/gpt-6-luna 或 @cf/meta/llama-3.1-8b-instruct。",
+  "enter a model id like @cf/zai-org/glm-4.7-flash or openai/gpt-6-luna": "请输入模型 ID，例如 @cf/zai-org/glm-4.7-flash 或 openai/gpt-6-luna。",
   "browser notifications are not configured on this server": "服务器尚未配置浏览器通知。",
   "the browser returned an invalid push subscription": "浏览器返回的通知订阅无效，请重新启用通知。",
   "the browser returned an incomplete push subscription": "浏览器返回的通知订阅不完整，请重新启用通知。",
