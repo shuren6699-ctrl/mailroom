@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_AI_MODEL, parseAiModel } from "../src/shared/ai-model.ts";
 
-test("the default AI model is a catalog slug", () => {
-  assert.deepEqual(parseAiModel(DEFAULT_AI_MODEL), { model: "openai/gpt-6-luna" });
+test("the default AI model is a native Workers AI model", () => {
+  assert.deepEqual(parseAiModel(DEFAULT_AI_MODEL), { model: "@cf/zai-org/glm-4.7-flash" });
 });
 
 test("accepts Workers AI ids and third-party catalog slugs, trimmed", () => {
-  assert.deepEqual(parseAiModel("  @cf/meta/llama-3.1-8b-instruct "), {
+  assert.deepEqual(parseAiModel(" @cf/meta/llama-3.1-8b-instruct "), {
     model: "@cf/meta/llama-3.1-8b-instruct",
   });
   assert.deepEqual(parseAiModel("xai/grok-4.6"), { model: "xai/grok-4.6" });
@@ -17,7 +17,7 @@ test("accepts Workers AI ids and third-party catalog slugs, trimmed", () => {
 });
 
 test("empty values reset to the default", () => {
-  for (const value of [null, undefined, "", "   "]) {
+  for (const value of [null, undefined, "", " "]) {
     assert.deepEqual(parseAiModel(value), { model: null });
   }
 });
