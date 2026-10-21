@@ -345,7 +345,7 @@ function Workspace(props: {
         activeView={props.view}
         onSelect={selectMailbox}
         onOpenArchive={() => navigate("/archive")}
-        onOpenSettings={openSettings}
+        onOpenSettings={openSettings} onLogout={() => window.location.assign("/cdn-cgi/access/logout?returnTo=/")}
         onCompose={() => { if (mailboxes.data?.length) openCompose(selectedMailbox); }}
         composeDisabled={!mailboxes.data?.length}
       />
