@@ -151,9 +151,9 @@ export function ComposeEmailProvider({ children, isAdmin }: { children: ReactNod
               ) : null}
               <fieldset disabled={locked || loading || loadError || available.length === 0} className="min-w-0 disabled:opacity-60">
                 <div className="flex min-h-12 items-center gap-3 border-b">
-                  <label htmlFor="compose-from" className="w-14 shrink-0 text-sm text-muted-foreground">发件人</label>
+                  <label htmlFor="compose-from" className="w-14 shrink-0 text-sm text-muted-foreground">发件地址</label>
                   <select id="compose-from" value={mailboxId} onChange={(event) => setMailboxId(event.target.value)} required className="min-w-0 flex-1 rounded-md bg-transparent py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <option value="" disabled>选择收件箱</option>
+                    <option value="" disabled>选择发件地址</option>
                     {available.map((mailbox) => <option key={mailbox.id} value={mailbox.id}>{mailbox.address}</option>)}
                   </select>
                 </div>
