@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { SquarePen } from "lucide-react";
+import { LogOut, SquarePen } from "lucide-react";
 import type { Label, Mailbox, ThreadSummary } from "../../shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ export function ThreadList(props: {
   onFilter: (filter: ThreadFilter) => void;
   onSelectLabel: (id: number | null) => void;
   onSelectScope: (scope: ThreadScope) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: () => void; onLogout: () => void;
   onCompose: () => void;
   onOpenMailboxSettings?: (id: number) => void;
   onSelect: (id: number) => void;
@@ -205,7 +205,7 @@ export function ThreadList(props: {
                 <SelectItem value="archive">已归档</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="ghost" size="icon" onClick={props.onCompose} disabled={props.composeDisabled} aria-label="写邮件" title="写邮件" className="shrink-0"><SquarePen className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={props.onCompose} disabled={props.composeDisabled} aria-label="写邮件" title="写邮件" className="shrink-0"><SquarePen className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={props.onLogout} aria-label="退出登录" title="退出登录" className="-mr-1.5 text-muted-foreground"><LogOut className="h-4 w-4" /></Button>
             <Button
               variant="ghost"
               size="icon"
