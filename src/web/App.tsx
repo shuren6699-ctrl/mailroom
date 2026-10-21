@@ -410,7 +410,7 @@ function Workspace(props: {
             onFilter={(nextFilter) => updateQuery("filter", nextFilter, "all")}
             onSelectLabel={(id) => updateQuery("label", id === null ? "" : String(id))}
             onSelectScope={selectScope}
-            onOpenSettings={openSettings}
+            onOpenSettings={openSettings} onLogout={() => window.location.assign("/cdn-cgi/access/logout?returnTo=/")}
             onCompose={() => { if (mailboxes.data?.length) openCompose(selectedMailbox); }}
             onOpenMailboxSettings={isAdmin ? (id) => navigate(`/settings/inboxes/${id}`) : undefined}
             onSelect={(id) =>
