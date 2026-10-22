@@ -32,7 +32,7 @@ import { ThreadList, type ThreadFilter, type ThreadScope } from "./components/Th
 import { ThreadView } from "./components/ThreadView";
 import { useUnreadIndicator } from "./use-unread-indicator";
 import { reconcileBrowserPushIdentity } from "./push-notifications";
-import { createWorkspaceQueryClient } from "./workspace-query-client";
+import { createWorkspaceQueryClient } from "./workspace-query-client"; import { logoutFromAccess } from "./logout";
 
 type WorkspaceView = "inbox" | "archive" | "settings";
 type SettingsSection = "general" | "inboxes" | "members";
@@ -345,7 +345,7 @@ function Workspace(props: {
         activeView={props.view}
         onSelect={selectMailbox}
         onOpenArchive={() => navigate("/archive")}
-        onOpenSettings={openSettings} onLogout={() => window.location.assign("/cdn-cgi/access/logout?returnTo=/")}
+        onOpenSettings={openSettings} onLogout={logoutFromAccess}
         onCompose={() => { if (mailboxes.data?.length) openCompose(selectedMailbox); }}
         composeDisabled={!mailboxes.data?.length}
       />
@@ -410,7 +410,7 @@ function Workspace(props: {
             onFilter={(nextFilter) => updateQuery("filter", nextFilter, "all")}
             onSelectLabel={(id) => updateQuery("label", id === null ? "" : String(id))}
             onSelectScope={selectScope}
-            onOpenSettings={openSettings} onLogout={() => window.location.assign("/cdn-cgi/access/logout?returnTo=/")}
+            onOpenSettings={openSettings} onLogout={logoutFromAccess}
             onCompose={() => { if (mailboxes.data?.length) openCompose(selectedMailbox); }}
             onOpenMailboxSettings={isAdmin ? (id) => navigate(`/settings/inboxes/${id}`) : undefined}
             onSelect={(id) =>
