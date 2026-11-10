@@ -133,6 +133,7 @@ async function snapshot(db: D1Database, token: string): Promise<{ revision: numb
 const SAFETY_FIELDS = [
   "require", "exclude", "session_duration", "approval_groups", "approval_required", "connection_rules",
   "isolation_required", "mfa_config", "purpose_justification_prompt", "purpose_justification_required",
+  "policy_resolution_account_id",
 ] as const;
 const POLICY_FIELDS = new Set<string>(["name", "decision", "include", ...SAFETY_FIELDS]);
 const RESPONSE_FIELDS = new Set(["id", "account_id", "app_count", "created_at", "updated_at", "reusable"]);
