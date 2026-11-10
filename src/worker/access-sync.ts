@@ -136,7 +136,7 @@ const SAFETY_FIELDS = [
   "policy_resolution_account_id",
 ] as const;
 const POLICY_FIELDS = new Set<string>(["name", "decision", "include", ...SAFETY_FIELDS]);
-const RESPONSE_FIELDS = new Set(["id", "account_id", "app_count", "created_at", "updated_at", "reusable"]);
+const RESPONSE_FIELDS = new Set(["id", "uid", "account_id", "app_count", "created_at", "updated_at", "reusable"]);
 
 type PolicyPhase = "get" | "put";
 function rejectPolicy(reason: Failure, phase: PolicyPhase, details: JsonObject = {}): never {

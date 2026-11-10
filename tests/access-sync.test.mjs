@@ -166,6 +166,16 @@ test("retains Cloudflare policy resolution account metadata", async (t) => {
   assert.equal(cf.current().policy_resolution_account_id, ACCOUNT);
 });
 
+test("accepts Cloudflare reusable policy uid response metadata", async (t) => {
+  const f = fixture(t);
+  const original = policy({ uid: "reusable-policy-uid" });
+  const cf = upstream(t, original);
+  assert.equal((await synchronizeAccessPolicy(f.env)).state, "synced");
+  const written = JSON.parse(cf.writes()[0].body);
+  assert.equal(written.uid, undefined);
+  assert.equal(cf.current().uid, "reusable-policy-uid");
+});
+
 test("owner must be the sole enabled administrator before any remote write", async (t) => {
   for (const mutation of [
     (f) => f.db.prepare("UPDATE members SET enabled = 0 WHERE email = ?").run(ADMIN),
