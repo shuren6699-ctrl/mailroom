@@ -413,3 +413,40 @@ test("members cannot overwrite another member's browser notification subscriptio
   denied(await f.json("/settings/browser-notifications", { ...subscription, endpoint: "https://push.example/disabled" }));
   assert.equal(f.db.prepare("SELECT COUNT(*) AS n FROM push_subscriptions").get().n, 1);
 });
+
+test("new mailboxes synchronize an exact Cloudflare Email Routing Worker rule", async (t) => {
+  const f = fixture(t);
+  f.as(ADMIN);
+  Object.assign(f.env, {
+    CF_EMAIL_ROUTING_API_TOKEN: "routing-token",
+    EMAIL_ROUTING_ZONE_ID: "b".repeat(32),
+  });
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, init = {}) => {
+    calls.push({ url: String(url), ...init });
+    if (init.method === "POST") return Response.json({ success: true, result: { id: "routing-rule" } });
+    return Response.json({ success: true, result: [] });
+  });
+  const response = await f.json("/mailboxes", { domain_id: 1, local_part: "004" });
+  assert.equal(response.status, 201);
+  const data = await response.json();
+  assert.equal(data.address, "004@example.com");
+  assert.equal(data.routing_sync.state, "synced");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].method, "POST");
+  assert.deepEqual(JSON.parse(calls[1].body).actions, [{ type: "worker", value: ["mailroom"] }]);
+});
+
+test("does not create a local mailbox when a configured routing sync fails", async (t) => {
+  const f = fixture(t);
+  f.as(ADMIN);
+  Object.assign(f.env, {
+    CF_EMAIL_ROUTING_API_TOKEN: "routing-token",
+    EMAIL_ROUTING_ZONE_ID: "b".repeat(32),
+  });
+  t.mock.method(globalThis, "fetch", async () => Response.json({ success: false, errors: [{ message: "no" }] }, { status: 403 }));
+  const response = await f.json("/mailboxes", { domain_id: 1, local_part: "005" });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /路由/);
+  assert.equal(f.db.prepare("SELECT COUNT(*) AS n FROM mailboxes WHERE address = '005@example.com'").get().n, 0);
+});

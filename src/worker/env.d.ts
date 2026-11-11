@@ -22,6 +22,8 @@ interface Env {
   CF_ACCESS_API_TOKEN?: string;
   ACCESS_SYNC_ACCOUNT_ID?: string;
   ACCESS_SYNC_POLICY_ID?: string;
+  CF_EMAIL_ROUTING_API_TOKEN?: string;
+  EMAIL_ROUTING_ZONE_ID?: string;
   DB: D1Database;
   RAW: R2Bucket;
   EMAIL: OutboundEmailBinding;

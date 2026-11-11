@@ -22,6 +22,7 @@ import {
   purgeInboxObjects,
 } from "../inbox/delete";
 import { validatePushSubscription } from "../notifications/push";
+import { ensureEmailRoutingRule } from "../email-routing-sync";
 import type {
   Attachment,
   BrowserPushSubscription,
@@ -263,6 +264,11 @@ api.post("/mailboxes", async (c) => {
     .first();
   if (existing) return c.json({ error: "This inbox already exists" }, 409);
 
+  const routingSync = await ensureEmailRoutingRule(c.env, address);
+  if (routingSync.configured && routingSync.state === "error") {
+    return c.json({ error: routingSync.message }, 502);
+  }
+
   let mailbox: Mailbox | null;
   try {
     mailbox = await c.env.DB.prepare(
@@ -278,7 +284,7 @@ api.post("/mailboxes", async (c) => {
     throw error;
   }
 
-  return c.json({ ...mailbox!, unread_count: 0, has_received: false }, 201);
+  return c.json({ ...mailbox!, unread_count: 0, has_received: false, routing_sync: routingSync }, 201);
 });
 
 api.patch("/mailboxes/:id", async (c) => {
